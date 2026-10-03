@@ -34,7 +34,7 @@ Pas de clé `Run` : elle démarre trop tard. Le démon est prêt ~30 ms après s
 
 `explorerbender-ui.exe` (Tauri 2, WebView2) est un processus **séparé, lancé à la demande, jamais résident** : il lit/écrit `config.toml`, le démon détecte le changement. Pages : vue d'ensemble (état, conflits, aperçu/appliquer/restaurer), volet de navigation (nœuds détectés), Accès rapide, Ce PC (dossiers + lecteurs détectés avec étiquette), affichage, menu contextuel (extensions et verbes détectés), profils et règles, TOML avancé. Un sélecteur « Édition de » permet d'éditer la configuration de base ou un profil (section par section : héritée ou remplacée).
 Les boutons délèguent au CLI : un seul chemin de code modifie le système. La page web n'a accès qu'à 5 commandes dédiées (aucun accès fichier/shell générique) ; tout texte lu dans le registre est affiché via `textContent`.
-Enregistrer depuis l'interface réécrit `config.toml` **sans commentaires** (l'ancienne version est gardée dans `config.toml.bak`) ; l'onglet « TOML avancé » conserve les commentaires.
+Enregistrer depuis l'interface modifie `config.toml` **en place** : commentaires et lignes inchangées sont conservés, seules les valeurs modifiées sont réécrites (l'ancienne version est gardée dans `config.toml.bak`). Les valeurs par défaut des sections touchées sont écrites explicitement.
 
 ## Configuration
 
@@ -70,7 +70,7 @@ hide_drives = ["D"]             # masque dans l'Explorateur, n'empêche PAS l'ac
 show_file_extensions = true
 show_hidden_files = true
 show_system_files = false
-launch_to = "this_pc"           # this_pc | home | downloads | onedrive
+launch_to = "this_pc"           # this_pc | home | downloads | onedrive (= dossier du fournisseur cloud principal)
 use_checkboxes = false
 nav_show_all_folders = false
 nav_expand_to_current_folder = true
@@ -168,7 +168,7 @@ Guid « Ce PC » : variantes `Local*` (Documents `{f42ee2d3-…}`, Téléchargem
 
 ## Limites connues
 
-- **Test en conditions réelles** ([compte rendu](docs/TESTING.md#test-en-conditions-réelles)) : globalement fonctionnel, mais les points fins de la checklist (`docs/TESTING.md`) n'ont pas tous été confirmés un à un, notamment les valeurs de `LaunchTo` (1 Ce PC, 2 Accueil, 3 Téléchargements, 4 OneDrive), issues de la documentation communautaire, et le rafraîchissement d'une fenêtre Explorateur déjà ouverte.
+- **Test en conditions réelles** ([compte rendu](docs/TESTING.md#test-en-conditions-réelles)) : globalement fonctionnel. Vérifiés un à un : les valeurs de `LaunchTo` (1 Ce PC, 2 Accueil, 3 Téléchargements, 4 = dossier du fournisseur cloud principal, pas forcément OneDrive : Proton Drive ici) et le changement de profil sur un vrai `WM_DEVICECHANGE`. Reste non confirmé : le rafraîchissement d'une fenêtre Explorateur déjà ouverte.
 - **Interface** : son WebView2 est requis (présent sur Windows 11).
 - **Réseau, Linux (WSL), OneDrive** : Réseau/Linux ne portent pas `System.IsPinnedToNameSpaceTree` ici, OneDrive est absent. Non implémenté (règle : pas de clé non vérifiée).
 - **Ordre des nœuds du volet** : non fait (`SortOrderIndex` existe mais son effet n'est pas validé).
@@ -176,6 +176,11 @@ Guid « Ce PC » : variantes `Local*` (Documents `{f42ee2d3-…}`, Téléchargem
 - Extensions de menu contextuel « modernes » (paquets MSIX, ex. PDFelement) : `Shell Extensions\Blocked` vise les CLSID ; son effet sur les extensions empaquetées n'est pas validé.
 - `NoDrives` masque dans l'Explorateur, n'empêche pas l'accès par chemin.
 - Les réglages élevés ne sont pas maintenus par le démon (il n'écrit jamais en zone protégée) : ils persistent d'eux-mêmes, mais si un autre outil les défait il faut relancer `apply --elevate`.
-- Un `WM_DEVICECHANGE` réel (branchement d'un disque) n'a pas été testé ; le message a été simulé.
+- `WM_DEVICECHANGE` testé avec un lecteur `subst` (vraie diffusion du système), pas avec un disque USB physique.
 - Un conflit détecté reste actif jusqu'à un changement de config ou un redémarrage d'Explorer.
 - Builds : **26200.9457 (25H2)** testée ; 26100 déclarée par analogie.
+- Les exécutables ne sont pas signés : SmartScreen avertit au premier lancement de l'installateur sur une autre machine.
+
+## Licence
+
+MIT, voir [LICENSE](LICENSE).

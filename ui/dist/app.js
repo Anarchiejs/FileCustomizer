@@ -341,7 +341,7 @@ function pageView() {
   if (gate) out.push(gate);
   const o = secObj('explorer_view');
   if (!o) return out;
-  out.push(card('Ouverture', null, row('Ouvrir l’Explorateur sur', seg([['', 'Inchangé'], ['this_pc', 'Ce PC'], ['home', 'Accueil'], ['downloads', 'Téléchargements']], () => o.launch_to || '', (v) => { o.launch_to = v || null; }), null, 'home')));
+  out.push(card('Ouverture', null, row('Ouvrir l’Explorateur sur', seg([['', 'Inchangé'], ['this_pc', 'Ce PC'], ['home', 'Accueil'], ['downloads', 'Téléchargements'], ['onedrive', 'Cloud']], () => o.launch_to || '', (v) => { o.launch_to = v || null; }), null, 'home')));
   for (const [title, opts] of VIEW_OPTS) out.push(card(title, null, ...opts.map(([k, label, hint]) => row(label, tri(o, k), hint))));
   return out;
 }

@@ -3,11 +3,13 @@
 ## Automatiques
 
 ```
-cargo test --workspace       # 57 tests, aucun effet sur le registre (voir ci-dessous)
+cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace       # 59 tests, aucun effet sur le registre (voir ci-dessous)
+node ui/test/run.mjs         # 9 scénarios de l'interface (Edge ou Chrome headless, sans npm)
 ```
 
-La CI GitHub Actions (`.github/workflows/ci.yml`, runner Windows) lance les mêmes commandes, plus clippy sur `ui/src-tauri`, à chaque push sur `main` et sur chaque pull request. Le lint `undocumented_unsafe_blocks` est actif : tout bloc `unsafe` doit être précédé d'un commentaire `// SAFETY:`.
+La CI GitHub Actions (`.github/workflows/ci.yml`, runner Windows) lance les mêmes commandes, plus fmt et clippy sur `ui/src-tauri`, à chaque push sur `main` et sur chaque pull request. Le lint `undocumented_unsafe_blocks` est actif : tout bloc `unsafe` doit être précédé d'un commentaire `// SAFETY:`.
 
 Couvert : défauts = rien à faire ; config invalide rejetée ; idempotence (2e passe = 0 écriture) ; `--dry-run` n'écrit rien ; restauration exacte (valeur, absence de valeur, clés créées) ; « première sauvegarde gagne » ; guerre d'écriture arrêtée ; épingles : désépinglage, liste blanche, ré-épinglage, jamais de bascule sur un élément non épinglé, dry-run, `revert`.
 
@@ -15,6 +17,8 @@ Tests d'intégration sur les vrais binaires, chacun dans un `EXPLORERBENDER_HOME
 
 - **CLI** (`crates/cli/tests`) : `init` ne réécrit jamais une config existante et produit une config sans effet ; `validate` rejette un TOML cassé ; profil inconnu refusé ; `apply`/`restore --dry-run` ne créent ni backup ni marqueur.
 - **Démon** (`crates/daemon/tests`) : sortie immédiate s'il est suspendu ; `status.json` écrit au démarrage ; deuxième instance bloquée par le mutex ; rechargement de `config.toml` sur événement ; config invalide signalée sans arrêt ; arrêt propre par l'événement nommé. Le mutex et l'événement dépendent du dossier de données : un vrai démon sur la session n'est ni gêné ni arrêté.
+- **Interface** (`ui/test/scenarios.html`, lancé par `ui/test/run.mjs`) : le vrai `app.js` piloté par clics et saisies contre un backend simulé (`ui/test/mock-state.js`) — noms venus du système insérés comme texte (une injection HTML/script échoue le test), masquer un nœud puis enregistrer, liste blanche nettoyée, annulation, action refusée tant que des modifications sont en cours, section de profil héritée/remplacée, suppression d'un profil et de ses règles.
+- **Enregistrement depuis l'interface** (`config.rs`) : commentaires et lignes inchangées de `config.toml` conservés, repli sur une écriture neuve si le fichier existant est illisible.
 - **Helper élevé** (`crates/elevated-helper/tests`, sans élévation, en `--dry-run`) : une entrée forgée dans `backup.json` (ex. `HKLM\...\Run`) est refusée et signalée, l'entrée légitime est restaurée, rien n'est perdu du fichier ; un dossier de données qui est une jonction est refusé avant toute écriture (code 3).
 
 ## Test en conditions réelles
@@ -29,7 +33,16 @@ Tests d'intégration sur les vrais binaires, chacun dans un `EXPLORERBENDER_HOME
 
 Ce test valide la chaîne complète en usage réel : installation, démarrage du démon par la tâche planifiée, interface et application de la configuration dans l'Explorateur.
 
-Ce qu'il ne couvre pas : les points de la checklist ci-dessous n'ont pas été cochés un à un, et aucun compte rendu point par point n'a été consigné. Restent donc à confirmer individuellement, notamment : les valeurs de `LaunchTo`, le rafraîchissement d'une fenêtre Explorateur déjà ouverte, un vrai `WM_DEVICECHANGE` (branchement d'un disque) et le cycle de désinstallation avec restauration. Un problème constaté plus tard doit être ajouté ici avec la build Windows concernée.
+Ce qu'il ne couvre pas : les points de la checklist ci-dessous n'ont pas tous été cochés un à un. Restent à confirmer : le rafraîchissement d'une fenêtre Explorateur déjà ouverte et le cycle de désinstallation avec restauration. Un problème constaté plus tard doit être ajouté ici avec la build Windows concernée.
+
+### Vérifications ciblées (2026-10-03, même machine)
+
+| Point | Méthode | Résultat |
+|---|---|---|
+| Valeurs de `LaunchTo` | démon arrêté ; pour chaque valeur, `explorer.exe` sans argument puis lecture de la nouvelle fenêtre via `Shell.Application` | 1 → Ce PC, 2 → Accueil, 3 → Téléchargements, 4 → dossier du fournisseur cloud principal (Proton Drive ici, OneDrive absent). Valeur d'origine restaurée, démon relancé. |
+| Vrai `WM_DEVICECHANGE` | démon isolé (`EXPLORERBENDER_HOME`), règle `drive_present = "Q"`, `subst Q: …` puis `subst Q: /d` | `profil actif : Test` ~3 s après l'apparition, `aucun (base)` après le retrait. |
+
+Piège : un shell lancé depuis une application empaquetée (MSIX, par ex. l'application de bureau Claude) voit un **HKCU virtualisé** — ses lectures et écritures ne sont pas celles du démon. Pour ces vérifications, lancer les commandes hors du conteneur (par ex. `Invoke-CimMethod Win32_Process Create`) ; un `explorerbender stop` doit toujours garder le même `EXPLORERBENDER_HOME` que le démon visé.
 
 ## Intégration manuelle (checklist)
 
@@ -74,8 +87,8 @@ Ce qu'il ne couvre pas : les points de la checklist ci-dessous n'ont pas été c
 4. Brancher/débrancher un lecteur utilisé par une règle → le profil change sans action.
 
 ### interface
-1. Lancer `explorerbender-ui.exe` : pages, enregistrement (« Enregistrer » → config.toml mis à jour, ancienne version dans `config.toml.bak`), « Aperçu », « Appliquer », « Tout restaurer ».
-2. Banc de test sans Tauri : `.claude/launch.json` (« ui-mock ») sert `ui/` ; ouvrir `/test/mock.html`.
+1. Lancer `explorerbender-ui.exe` : pages, enregistrement (« Enregistrer » → config.toml mis à jour en place, commentaires conservés, ancienne version dans `config.toml.bak`), « Aperçu », « Appliquer », « Tout restaurer ».
+2. Banc de test sans Tauri : `.claude/launch.json` (« ui-mock ») sert `ui/` ; ouvrir `/test/mock.html` (manipulation libre) ou `/test/scenarios.html` (scénarios automatiques).
 
 ## Mesures (build release, Windows 26200.9457)
 

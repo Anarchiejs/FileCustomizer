@@ -8,7 +8,7 @@ La table vit dans `crates/core/src/compat.rs`. Un tweak n'est appliqué automati
 | `quick-access` | 26100–26299 | 2026-10-03 sur **26200.9457** | Propriété `System.Home.IsPinned` lisible ; verbes `pintohome`/`unpinfromhome` exécutés via `windows.storage.dll` ; désépinglage/ré-épinglage observés. |
 | `thispc-drives` | 26100–26299 | 2026-10-03 sur **26200.9457** | Écriture/relecture/restauration réelles via le helper élevé (`NoDrives`, clé `Policies\Explorer` créée puis supprimée). Effet visuel non constaté. |
 | `thispc-folders` | 26100–26299 | 2026-10-03 sur **26200.9457** | Écriture/restauration HKLM réelles, natif + WOW6432Node (Objets 3D). Effet visuel non constaté. |
-| `explorer-view` | 26100–26299 | 2026-10-03 sur **26200.9457** | Écriture/relecture/restauration réelles (`HideFileExt`, `LaunchTo`). Effet visuel et valeurs `LaunchTo` 2/3/4 non constatés. |
+| `explorer-view` | 26100–26299 | 2026-10-03 sur **26200.9457** | Écriture/relecture/restauration réelles (`HideFileExt`, `LaunchTo`). Valeurs `LaunchTo` 1–4 constatées (4 = fournisseur cloud principal). |
 | `context-menu` | 26100–26299 | 2026-10-03 sur **26200.9457** | Vue HKCR fusionnée vérifiée : `LegacyDisable` s'ajoute aux valeurs d'origine ; `InprocServer32` vide ; `Blocked`. Effet visuel non constaté. |
 
 **Découverte de validation** : `HKCU\Software\Microsoft\Windows\CurrentVersion\Policies` est en *lecture seule* pour l'utilisateur (ACL : SYSTEM et Administrateurs en contrôle total) — d'où l'élévation pour `NoDrives`.

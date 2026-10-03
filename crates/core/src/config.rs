@@ -337,7 +337,7 @@ version = 1
 # show_file_extensions = true
 # show_hidden_files = true
 # show_system_files = false
-# launch_to = "this_pc"    # this_pc | home | downloads | onedrive
+# launch_to = "this_pc"    # this_pc | home | downloads | onedrive (= fournisseur cloud principal)
 # use_checkboxes = false
 # nav_show_all_folders = false
 # nav_expand_to_current_folder = true
