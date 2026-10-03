@@ -65,7 +65,15 @@ struct Opts {
 
 fn parse() -> Result<Opts, String> {
     let mut args = std::env::args().skip(1);
-    let mut o = Opts { cmd: String::new(), positional: vec![], dry_run: false, restart_explorer: false, elevate: false, auto: false, config: None };
+    let mut o = Opts {
+        cmd: String::new(),
+        positional: vec![],
+        dry_run: false,
+        restart_explorer: false,
+        elevate: false,
+        auto: false,
+        config: None,
+    };
     while let Some(a) = args.next() {
         match a.as_str() {
             "--dry-run" => o.dry_run = true,
@@ -242,7 +250,10 @@ fn run_elevated(verb: &str, dry_run: bool) -> Option<bool> {
         let _ = GetExitCodeProcess(info.hProcess, &mut code);
         let _ = CloseHandle(info.hProcess);
         if code == 3 {
-            eprintln!("le helper élevé a refusé {} : lien ou point de jonction dans le dossier de données.", paths::data_dir().display());
+            eprintln!(
+                "le helper élevé a refusé {} : lien ou point de jonction dans le dossier de données.",
+                paths::data_dir().display()
+            );
         }
         if let Ok(s) = std::fs::read_to_string(paths::elevated_result()) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
@@ -265,7 +276,10 @@ fn cmd_init() -> u8 {
         eprintln!("écriture impossible : {e}");
         return 1;
     }
-    println!("Configuration créée : {}\nElle ne modifie rien tant que vous n'avez pas décommenté des options.", p.display());
+    println!(
+        "Configuration créée : {}\nElle ne modifie rien tant que vous n'avez pas décommenté des options.",
+        p.display()
+    );
     0
 }
 
@@ -278,7 +292,10 @@ fn cmd_apply(o: &Opts) -> u8 {
     let requested = o.positional.first().cloned();
     if let Some(p) = &requested {
         if !base.profiles.contains_key(p) {
-            eprintln!("Profil « {p} » inconnu. Profils définis : {}", base.profiles.keys().cloned().collect::<Vec<_>>().join(", "));
+            eprintln!(
+                "Profil « {p} » inconnu. Profils définis : {}",
+                base.profiles.keys().cloned().collect::<Vec<_>>().join(", ")
+            );
             return 2;
         }
         if !o.dry_run {
@@ -303,7 +320,9 @@ fn cmd_apply(o: &Opts) -> u8 {
         eprintln!("avertissement : {w}");
     }
     match &res.profile {
-        Some(p) => println!("Profil actif : {p}{}", if res.manual { " (choix manuel)" } else { " (règle automatique)" }),
+        Some(p) => {
+            println!("Profil actif : {p}{}", if res.manual { " (choix manuel)" } else { " (règle automatique)" })
+        }
         None => println!("Profil actif : aucun (configuration de base)"),
     }
     let mut s = match open_session() {
@@ -332,7 +351,10 @@ fn cmd_apply(o: &Opts) -> u8 {
     } else {
         log::log(
             eb_core::config::LogLevel::Info,
-            &format!("apply CLI : {} changement(s)", r.changes.iter().filter(|c| c.kind == ChangeKind::Applied).count()),
+            &format!(
+                "apply CLI : {} changement(s)",
+                r.changes.iter().filter(|c| c.kind == ChangeKind::Applied).count()
+            ),
         );
         if !daemon_running() {
             println!("\nNote : le démon n'est pas lancé ; les modifications ne seront pas maintenues. Voir `scripts\\install.ps1`.");
@@ -419,7 +441,10 @@ fn cmd_restore(o: &Opts) -> u8 {
     if !o.dry_run {
         // Suspendre d'abord : sinon le démon réappliquerait la config en nous voyant restaurer.
         let _ = std::fs::create_dir_all(paths::data_dir());
-        let _ = std::fs::write(paths::disabled_marker(), "ExplorerBender suspendu par `restore`. `explorerbender apply` le réactive.\n");
+        let _ = std::fs::write(
+            paths::disabled_marker(),
+            "ExplorerBender suspendu par `restore`. `explorerbender apply` le réactive.\n",
+        );
         if signal_daemon_stop() {
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
@@ -485,7 +510,11 @@ fn cmd_status(o: &Opts) -> u8 {
     };
     println!("Windows build  : {}", s.build);
     let quiet = res.base.is_noop() && res.base.profiles.is_empty();
-    println!("Configuration  : {}{}", config_path(o).display(), if quiet { " (aucune modification demandée)" } else { "" });
+    println!(
+        "Configuration  : {}{}",
+        config_path(o).display(),
+        if quiet { " (aucune modification demandée)" } else { "" }
+    );
     if let Some(e) = cfg_err {
         println!("  ERREUR de configuration : {e}");
     }
@@ -500,7 +529,11 @@ fn cmd_status(o: &Opts) -> u8 {
     if paths::disabled_marker().exists() {
         println!("  suspendu par `restore` (marqueur {})", paths::disabled_marker().display());
     }
-    println!("Backup         : {} valeur(s), {} épingle(s) retirée(s)", s.backup.data.entries.len(), s.backup.data.unpinned_quick_access.len());
+    println!(
+        "Backup         : {} valeur(s), {} épingle(s) retirée(s)",
+        s.backup.data.entries.len(),
+        s.backup.data.unpinned_quick_access.len()
+    );
     if let Some(st) = Status::load(&paths::status_path()) {
         println!("Dernière application par le démon : {}", st.last_apply_at);
         if let Some(e) = st.config_error {
@@ -589,9 +622,16 @@ fn cmd_verbs() -> u8 {
 
 fn cmd_validate(o: &Opts) -> u8 {
     let p = o.positional.first().map(PathBuf::from).unwrap_or_else(|| config_path(o));
-    match std::fs::read_to_string(&p).map_err(|e| e.to_string()).and_then(|s| Config::from_toml(&s).map_err(|e| e.to_string())) {
+    match std::fs::read_to_string(&p)
+        .map_err(|e| e.to_string())
+        .and_then(|s| Config::from_toml(&s).map_err(|e| e.to_string()))
+    {
         Ok(c) => {
-            println!("{} : valide{}", p.display(), if c.is_noop() && c.profiles.is_empty() { " (ne modifie rien)" } else { "" });
+            println!(
+                "{} : valide{}",
+                p.display(),
+                if c.is_noop() && c.profiles.is_empty() { " (ne modifie rien)" } else { "" }
+            );
             for r in &c.rules {
                 if !c.profiles.contains_key(&r.profile) {
                     println!("  avertissement : règle vers le profil inconnu « {} »", r.profile);
@@ -618,7 +658,11 @@ fn cmd_debug_pin(o: &Opts) -> u8 {
         Err(c) => return c,
     };
     let norm = |x: &str| x.trim_end_matches('\\').to_lowercase();
-    let pinned = s.shell().quick_access_items().map(|v| v.iter().any(|i| i.pinned && norm(&i.parsing_name) == norm(p))).unwrap_or(false);
+    let pinned = s
+        .shell()
+        .quick_access_items()
+        .map(|v| v.iter().any(|i| i.pinned && norm(&i.parsing_name) == norm(p)))
+        .unwrap_or(false);
     match if pinned { s.shell().unpin(p) } else { s.shell().pin(p) } {
         Ok(()) => {
             println!("{p} : {}", if pinned { "désépinglé" } else { "épinglé" });

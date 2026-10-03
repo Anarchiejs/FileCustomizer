@@ -187,7 +187,11 @@ pub fn reconcile_registry(ctx: &mut Ctx, tweak: &str, desired: &[RegSetting]) ->
                 if !drifted {
                     let _ = ctx.backup.remove(&s.key, &s.name);
                 }
-                let msg = if matches!(e, Error::AccessDenied(_)) { format!("{e} (élévation requise)") } else { e.to_string() };
+                let msg = if matches!(e, Error::AccessDenied(_)) {
+                    format!("{e} (élévation requise)")
+                } else {
+                    e.to_string()
+                };
                 ctx.report.push(tweak, ChangeKind::Error, &s.label, msg);
             }
         }

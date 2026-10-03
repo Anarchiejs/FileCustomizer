@@ -17,13 +17,18 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             . -> target
             ui/src-tauri -> target
+
+      - name: Format
+        run: |
+          cargo fmt --all -- --check
+          cargo fmt --manifest-path ui/src-tauri/Cargo.toml -- --check
 
       # Tous les avertissements (dont `unsafe` sans `// SAFETY:`) font échouer la CI.
       - name: Clippy (workspace)
@@ -35,3 +40,4 @@ jobs:
       # Aucun effet sur le registre : chaque test d'intégration tourne dans un EXPLORERBENDER_HOME temporaire.
       - name: Tests
         run: cargo test --workspace
+

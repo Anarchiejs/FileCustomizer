@@ -57,7 +57,10 @@ fn init_creates_a_noop_config_once() {
     std::fs::write(&cfg, format!("{first}\n# modifié par l'utilisateur\n")).unwrap();
     let o = run(&h, &["init"]);
     assert!(o.status.success());
-    assert!(std::fs::read_to_string(&cfg).unwrap().ends_with("# modifié par l'utilisateur\n"), "init a écrasé la config");
+    assert!(
+        std::fs::read_to_string(&cfg).unwrap().ends_with("# modifié par l'utilisateur\n"),
+        "init a écrasé la config"
+    );
 
     // La config générée ne doit rien modifier tant que l'utilisateur ne l'a pas éditée.
     let o = run(&h, &["validate"]);

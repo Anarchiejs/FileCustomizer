@@ -94,10 +94,10 @@ pub use win::WinShell;
 mod win {
     use super::*;
     use windows::core::{w, Interface, GUID, PCWSTR, PWSTR};
+    use windows::Win32::Foundation::PROPERTYKEY;
     use windows::Win32::Foundation::{LPARAM, WPARAM};
     use windows::Win32::System::Com::StructuredStorage::IPropertyBag;
     use windows::Win32::System::Com::*;
-    use windows::Win32::Foundation::PROPERTYKEY;
     use windows::Win32::System::SystemServices::SFGAO_FOLDER;
     use windows::Win32::UI::Shell::PropertiesSystem::PSGetPropertyKeyFromName;
     use windows::Win32::UI::Shell::*;
@@ -202,9 +202,8 @@ mod win {
                 let Some(item) = slot[0].take() else { break };
                 // Les fichiers récents ne nous intéressent pas : seulement les dossiers.
                 // SAFETY: `item` est un `IShellItem` valide renvoyé par l'énumérateur.
-                let is_folder = unsafe { item.GetAttributes(SFGAO_FOLDER) }
-                    .map(|a| a.0 & SFGAO_FOLDER.0 != 0)
-                    .unwrap_or(false);
+                let is_folder =
+                    unsafe { item.GetAttributes(SFGAO_FOLDER) }.map(|a| a.0 & SFGAO_FOLDER.0 != 0).unwrap_or(false);
                 if !is_folder {
                     continue;
                 }

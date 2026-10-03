@@ -103,13 +103,7 @@ impl BackupStore {
     }
 
     /// Mémorise l'état actuel de `key\name` s'il n'est pas déjà géré. Sauvegarde sur disque.
-    pub fn record(
-        &mut self,
-        reg: &dyn RegistryBackend,
-        tweak: &str,
-        key: &RegKey,
-        name: &str,
-    ) -> Result<()> {
+    pub fn record(&mut self, reg: &dyn RegistryBackend, tweak: &str, key: &RegKey, name: &str) -> Result<()> {
         if self.find(key, name).is_some() {
             return Ok(());
         }
@@ -226,7 +220,8 @@ mod tests {
     fn quarantined_entries_are_hidden_but_kept_on_disk() {
         let dir = std::env::temp_dir().join(format!("eb-backup-q-{}", std::process::id()));
         let path = dir.join("backup.json");
-        let reg = MockRegistry::new().with_value(key(), "v", RegValue::Dword(1)).with_value(key(), "w", RegValue::Dword(2));
+        let reg =
+            MockRegistry::new().with_value(key(), "v", RegValue::Dword(1)).with_value(key(), "w", RegValue::Dword(2));
         let mut b = BackupStore::load(&path).unwrap();
         b.record(&reg, "t", &key(), "v").unwrap();
         b.record(&reg, "bad", &key(), "w").unwrap();

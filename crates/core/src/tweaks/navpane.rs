@@ -125,11 +125,7 @@ fn resolve(ctx: &Ctx, name: &str, discovered: &mut Option<Vec<NavNode>>) -> Opti
     if discovered.is_none() {
         *discovered = discover_nodes(ctx.reg, ctx.shell).ok();
     }
-    discovered
-        .as_ref()?
-        .iter()
-        .find(|n| n.name.trim().to_lowercase() == lower)
-        .map(|n| n.clsid.to_lowercase())
+    discovered.as_ref()?.iter().find(|n| n.name.trim().to_lowercase() == lower).map(|n| n.clsid.to_lowercase())
 }
 
 fn value_for(v: Visibility) -> Option<u32> {
@@ -143,10 +139,8 @@ fn value_for(v: Visibility) -> Option<u32> {
 /// État désiré + noms de nœuds de la config qu'on n'a pas su résoudre.
 fn desired(ctx: &Ctx) -> (Vec<RegSetting>, Vec<String>) {
     let cfg = &ctx.cfg.navigation_pane;
-    let mut wanted: Vec<(String, String, Visibility)> = vec![
-        (HOME.into(), "Accueil".into(), cfg.home),
-        (GALLERY.into(), "Galerie".into(), cfg.gallery),
-    ];
+    let mut wanted: Vec<(String, String, Visibility)> =
+        vec![(HOME.into(), "Accueil".into(), cfg.home), (GALLERY.into(), "Galerie".into(), cfg.gallery)];
     let mut unresolved = Vec::new();
     let mut discovered = None;
     for (name, vis) in &cfg.nodes {
@@ -204,7 +198,12 @@ impl Tweak for NavPane {
     fn apply(&self, ctx: &mut Ctx) -> Result<()> {
         let (settings, unresolved) = desired(ctx);
         for u in unresolved {
-            ctx.report.push(META.id, ChangeKind::Skipped, format!("Nœud « {u} »"), "introuvable (voir `explorerbender nodes`)");
+            ctx.report.push(
+                META.id,
+                ChangeKind::Skipped,
+                format!("Nœud « {u} »"),
+                "introuvable (voir `explorerbender nodes`)",
+            );
         }
         reconcile_registry(ctx, META.id, &settings)
     }
@@ -234,7 +233,19 @@ mod tests {
 
     fn run(cfg: &Config, reg: &MockRegistry, backup: &mut BackupStore, guard: &mut ConflictGuard, dry: bool) -> Report {
         let shell = MockShell::default();
-        let mut ctx = Ctx { reg, shell: &shell, backup, cfg, guard, dry_run: dry, now_ms: 0, build: 26200, report: Report::default(), defer_shell: false, elevated: false };
+        let mut ctx = Ctx {
+            reg,
+            shell: &shell,
+            backup,
+            cfg,
+            guard,
+            dry_run: dry,
+            now_ms: 0,
+            build: 26200,
+            report: Report::default(),
+            defer_shell: false,
+            elevated: false,
+        };
         NavPane.apply(&mut ctx).unwrap();
         ctx.report
     }
@@ -310,6 +321,10 @@ mod tests {
             blocked |= r.changes.iter().any(|c| c.kind == ChangeKind::Conflict);
         }
         assert!(blocked, "le conflit doit être détecté");
-        assert_eq!(reg.get_value(&node_key(HOME), PIN_VALUE).unwrap(), Some(RegValue::Dword(1)), "on cesse de réécrire");
+        assert_eq!(
+            reg.get_value(&node_key(HOME), PIN_VALUE).unwrap(),
+            Some(RegValue::Dword(1)),
+            "on cesse de réécrire"
+        );
     }
 }

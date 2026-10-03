@@ -62,10 +62,7 @@ pub fn log(level: LogLevel, msg: &str) {
         _ => "DEBUG",
     };
     // Millisecondes : nécessaires pour mesurer les temps de démarrage depuis le journal.
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_millis())
-        .unwrap_or(0);
+    let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_millis()).unwrap_or(0);
     let ts = format_utc(now_secs());
     let line = format!("{}.{ms:03}Z {tag} {msg}\n", &ts[..ts.len() - 1]);
     if let Some(f) = s.file.as_mut() {
@@ -76,10 +73,7 @@ pub fn log(level: LogLevel, msg: &str) {
 }
 
 pub fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 /// Secondes Unix -> `2026-10-03T14:15:16Z` (algorithme de Howard Hinnant, sans dépendance).

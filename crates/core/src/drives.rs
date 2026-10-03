@@ -42,7 +42,9 @@ pub fn list_drives() -> Vec<DriveInfo> {
             if kind != "réseau" {
                 let mut buf = [0u16; 261];
                 // SAFETY: `root` est terminée par NUL ; `buf` est un tampon local dont la taille est transmise via la slice.
-                if unsafe { GetVolumeInformationW(PCWSTR(root.as_ptr()), Some(&mut buf), None, None, None, None) }.is_ok() {
+                if unsafe { GetVolumeInformationW(PCWSTR(root.as_ptr()), Some(&mut buf), None, None, None, None) }
+                    .is_ok()
+                {
                     let n = buf.iter().position(|c| *c == 0).unwrap_or(0);
                     label = String::from_utf16_lossy(&buf[..n]);
                 }

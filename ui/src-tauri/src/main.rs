@@ -10,12 +10,12 @@
 use eb_core::compat;
 use eb_core::config::Config;
 use eb_core::drives::{self, SysEnv};
+use eb_core::paths;
 use eb_core::profile;
 use eb_core::registry::WinRegistry;
 use eb_core::shell::WinShell;
 use eb_core::status::Status;
 use eb_core::tweaks::{context_menu, navpane, thispc};
-use eb_core::paths;
 use serde_json::{json, Value};
 use std::os::windows::process::CommandExt;
 use std::process::Command;
@@ -61,7 +61,8 @@ fn get_state() -> Result<Value, String> {
         .map(|e| json!({ "clsid": e.clsid, "name": e.name, "blocked": e.blocked }))
         .collect();
     let verbs = context_menu::discover_verbs(&reg).unwrap_or_default();
-    let folders: Vec<Value> = thispc::FOLDERS.iter().map(|(id, _, _, label)| json!({ "id": id, "label": label })).collect();
+    let folders: Vec<Value> =
+        thispc::FOLDERS.iter().map(|(id, _, _, label)| json!({ "id": id, "label": label })).collect();
     let resolved = profile::resolve(cfg.clone(), &SysEnv);
     Ok(json!({
         "config": cfg,

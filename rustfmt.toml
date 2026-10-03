@@ -1,0 +1,4 @@
+# Le code est écrit en lignes longues (commentaires en français, chaînes de messages) : 120 colonnes
+# limitent le réformatage tout en restant lisibles.
+max_width = 120
+use_small_heuristics = "Max"

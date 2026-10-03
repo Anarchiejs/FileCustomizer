@@ -17,12 +17,7 @@ pub struct ConflictGuard {
 
 impl ConflictGuard {
     pub fn new(max_rewrites: u32, window_secs: u32) -> Self {
-        Self {
-            max_rewrites,
-            window_ms: window_secs as u64 * 1000,
-            history: HashMap::new(),
-            blocked: BTreeSet::new(),
-        }
+        Self { max_rewrites, window_ms: window_secs as u64 * 1000, history: HashMap::new(), blocked: BTreeSet::new() }
     }
 
     pub fn configure(&mut self, max_rewrites: u32, window_secs: u32) {

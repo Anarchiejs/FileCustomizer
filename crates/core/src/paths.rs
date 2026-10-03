@@ -49,7 +49,11 @@ fn instance_suffix() -> String {
         None => String::new(),
         Some(h) => {
             // FNV-1a : stable d'un processus à l'autre (contrairement à `DefaultHasher`).
-            let h = h.to_string_lossy().to_lowercase().bytes().fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3));
+            let h = h
+                .to_string_lossy()
+                .to_lowercase()
+                .bytes()
+                .fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3));
             format!(".{h:016x}")
         }
     }

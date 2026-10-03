@@ -71,9 +71,28 @@ fn create_hidden_window() -> Option<HWND> {
         TASKBAR_CREATED_MSG.store(RegisterWindowMessageW(w!("TaskbarCreated")), Ordering::Relaxed);
         let hinst = GetModuleHandleW(None).ok()?;
         let class = w!("ExplorerBenderHidden");
-        let wc = WNDCLASSW { lpfnWndProc: Some(wnd_proc), hInstance: hinst.into(), lpszClassName: class, ..Default::default() };
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(wnd_proc),
+            hInstance: hinst.into(),
+            lpszClassName: class,
+            ..Default::default()
+        };
         RegisterClassW(&wc);
-        CreateWindowExW(WINDOW_EX_STYLE(0), class, w!("ExplorerBender"), WS_POPUP, 0, 0, 0, 0, None, None, Some(hinst.into()), None).ok()
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            class,
+            w!("ExplorerBender"),
+            WS_POPUP,
+            0,
+            0,
+            0,
+            0,
+            None,
+            None,
+            Some(hinst.into()),
+            None,
+        )
+        .ok()
     }
 }
 
@@ -111,7 +130,7 @@ impl Daemon {
             return; // la passe déjà programmée verra l'état le plus récent
         }
         let due = -(ms as i64) * 10_000; // 100 ns, négatif = relatif
-        // SAFETY: `self.timer` est un handle de timer valide ; `due` vit pendant l'appel.
+                                         // SAFETY: `self.timer` est un handle de timer valide ; `due` vit pendant l'appel.
         unsafe {
             let _ = SetWaitableTimer(self.timer, &due, 0, None, None, false);
         }
@@ -177,8 +196,10 @@ impl Daemon {
     /// `fast` : registre seulement (démarrage). Le volet COM/Shell suit via la minuterie.
     fn apply(&mut self, reason: &str, fast: bool) {
         let t0 = Instant::now();
-        let report = if fast { self.session.apply_registry_only(&self.cfg) } else { self.session.apply(&self.cfg, false) };
-        let changed = report.changes.iter().filter(|c| c.kind == ChangeKind::Applied || c.kind == ChangeKind::Reverted).count();
+        let report =
+            if fast { self.session.apply_registry_only(&self.cfg) } else { self.session.apply(&self.cfg, false) };
+        let changed =
+            report.changes.iter().filter(|c| c.kind == ChangeKind::Applied || c.kind == ChangeKind::Reverted).count();
         if fast && changed > 0 {
             self.notify_pending = true;
         } else if !fast && self.notify_pending {
@@ -199,7 +220,8 @@ impl Daemon {
         }
         // Nos propres modifications déclenchent des notifications ; on les laisse passer sans refaire un tour.
         if changed > 0 {
-            self.ignore_until = Some(Instant::now() + std::time::Duration::from_millis(self.cfg.general.debounce_ms as u64 * 2));
+            self.ignore_until =
+                Some(Instant::now() + std::time::Duration::from_millis(self.cfg.general.debounce_ms as u64 * 2));
         }
         self.write_status(&report);
         // Le démon doit rester sous quelques Mo : on rend au système les pages utilisées par COM/Shell.

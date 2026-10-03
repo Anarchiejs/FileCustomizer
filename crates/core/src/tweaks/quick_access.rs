@@ -65,7 +65,8 @@ fn desired(cfg: &Config) -> Vec<RegSetting> {
         QuickAccessMode::Default => (q.show_frequent, q.show_recent),
     };
     let mut v = Vec::new();
-    for (name, val, label) in [("ShowFrequent", freq, "dossiers fréquents"), ("ShowRecent", recent, "fichiers récents")] {
+    for (name, val, label) in [("ShowFrequent", freq, "dossiers fréquents"), ("ShowRecent", recent, "fichiers récents")]
+    {
         if let Some(b) = val {
             v.push(RegSetting {
                 key: explorer_key(),
@@ -121,7 +122,9 @@ impl Tweak for QuickAccess {
         for p in previously {
             let probe = QaItem { name: p.clone(), parsing_name: p.clone(), pinned: false };
             let currently_pinned = items.iter().any(|i| i.pinned && norm(&i.parsing_name) == norm(&p));
-            if allowed_pinned(cfg, &probe) || items.iter().any(|i| norm(&i.parsing_name) == norm(&p) && allowed_pinned(cfg, i)) {
+            if allowed_pinned(cfg, &probe)
+                || items.iter().any(|i| norm(&i.parsing_name) == norm(&p) && allowed_pinned(cfg, i))
+            {
                 if ctx.dry_run {
                     ctx.report.push(META.id, ChangeKind::WouldRevert, format!("Épingle {p}"), "ré-épinglage");
                     continue;
@@ -148,7 +151,12 @@ impl Tweak for QuickAccess {
         }
         if ctx.dry_run {
             for t in &targets {
-                ctx.report.push(META.id, ChangeKind::WouldApply, format!("Épingle « {} »", t.name), format!("désépingler {}", t.parsing_name));
+                ctx.report.push(
+                    META.id,
+                    ChangeKind::WouldApply,
+                    format!("Épingle « {} »", t.name),
+                    format!("désépingler {}", t.parsing_name),
+                );
             }
             return Ok(());
         }
@@ -166,7 +174,12 @@ impl Tweak for QuickAccess {
             // Mémoriser AVANT d'agir : si on plante entre les deux, `restore` pourra ré-épingler.
             ctx.backup.note_unpinned(&t.parsing_name)?;
             match ctx.shell.unpin(&t.parsing_name) {
-                Ok(()) => ctx.report.push(META.id, ChangeKind::Applied, format!("Épingle « {} »", t.name), format!("désépinglé ({})", t.parsing_name)),
+                Ok(()) => ctx.report.push(
+                    META.id,
+                    ChangeKind::Applied,
+                    format!("Épingle « {} »", t.name),
+                    format!("désépinglé ({})", t.parsing_name),
+                ),
                 Err(e) => {
                     // Rien n'a changé : on retire la note pour ne pas « restaurer » une épingle qui n'a jamais disparu.
                     ctx.backup.data.unpinned_quick_access.retain(|x| norm(x) != norm(&t.parsing_name));
@@ -241,11 +254,28 @@ mod tests {
 
     impl Rig {
         fn new(items: Vec<QaItem>) -> Self {
-            Rig { reg: MockRegistry::new(), shell: MockShell::with_items(items), backup: BackupStore::in_memory(), guard: ConflictGuard::new(5, 30) }
+            Rig {
+                reg: MockRegistry::new(),
+                shell: MockShell::with_items(items),
+                backup: BackupStore::in_memory(),
+                guard: ConflictGuard::new(5, 30),
+            }
         }
         fn apply(&mut self, toml: &str, dry: bool) -> Report {
             let cfg = Config::from_toml(toml).unwrap();
-            let mut ctx = Ctx { reg: &self.reg, shell: &self.shell, backup: &mut self.backup, cfg: &cfg, guard: &mut self.guard, dry_run: dry, now_ms: 0, build: 26200, report: Report::default(), defer_shell: false, elevated: false };
+            let mut ctx = Ctx {
+                reg: &self.reg,
+                shell: &self.shell,
+                backup: &mut self.backup,
+                cfg: &cfg,
+                guard: &mut self.guard,
+                dry_run: dry,
+                now_ms: 0,
+                build: 26200,
+                report: Report::default(),
+                defer_shell: false,
+                elevated: false,
+            };
             QuickAccess.apply(&mut ctx).unwrap();
             ctx.report
         }
@@ -255,7 +285,11 @@ mod tests {
     }
 
     fn sample() -> Vec<QaItem> {
-        vec![item("Documents", r"C:\Documents", true), item("Bureau", r"C:\Desktop", true), item("ReviPlan", r"C:\Documents\GitHub\ReviPlan", false)]
+        vec![
+            item("Documents", r"C:\Documents", true),
+            item("Bureau", r"C:\Desktop", true),
+            item("ReviPlan", r"C:\Documents\GitHub\ReviPlan", false),
+        ]
     }
 
     #[test]
@@ -350,7 +384,19 @@ mod tests {
         let mut r = Rig::new(sample());
         r.apply("[quick_access]\nmode = \"disabled\"", false);
         let cfg = Config::default();
-        let mut ctx = Ctx { reg: &r.reg, shell: &r.shell, backup: &mut r.backup, cfg: &cfg, guard: &mut r.guard, dry_run: false, now_ms: 0, build: 26200, report: Report::default(), defer_shell: false, elevated: false };
+        let mut ctx = Ctx {
+            reg: &r.reg,
+            shell: &r.shell,
+            backup: &mut r.backup,
+            cfg: &cfg,
+            guard: &mut r.guard,
+            dry_run: false,
+            now_ms: 0,
+            build: 26200,
+            report: Report::default(),
+            defer_shell: false,
+            elevated: false,
+        };
         QuickAccess.revert(&mut ctx).unwrap();
         assert_eq!(r.pinned().len(), 2);
         assert!(r.backup.is_empty());

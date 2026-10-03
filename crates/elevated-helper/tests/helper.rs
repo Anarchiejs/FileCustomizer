@@ -42,7 +42,13 @@ fn changes(report: &serde_json::Value) -> Vec<(String, String, String)> {
         .as_array()
         .map(|a| {
             a.iter()
-                .map(|c| (c["kind"].as_str().unwrap_or("").to_string(), c["what"].as_str().unwrap_or("").to_string(), c["detail"].as_str().unwrap_or("").to_string()))
+                .map(|c| {
+                    (
+                        c["kind"].as_str().unwrap_or("").to_string(),
+                        c["what"].as_str().unwrap_or("").to_string(),
+                        c["detail"].as_str().unwrap_or("").to_string(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -105,7 +111,8 @@ fn junction_data_dir_is_refused_before_any_write() {
     let target = h.path().join("cible");
     let link = h.path().join("lien");
     std::fs::create_dir_all(&target).unwrap();
-    let ok = Command::new("cmd").args(["/c", "mklink", "/J"]).arg(&link).arg(&target).output().unwrap().status.success();
+    let ok =
+        Command::new("cmd").args(["/c", "mklink", "/J"]).arg(&link).arg(&target).output().unwrap().status.success();
     assert!(ok, "mklink /J impossible");
 
     let (code, _) = helper(&link, "restore");

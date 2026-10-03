@@ -43,8 +43,16 @@ fn desired(cfg: &Config) -> Vec<RegSetting> {
         ("LaunchTo", v.launch_to.map(launch_to_value), "ouverture par défaut"),
         ("AutoCheckSelect", v.use_checkboxes.map(b), "cases à cocher"),
         ("NavPaneShowAllFolders", v.nav_show_all_folders.map(b), "volet : afficher tous les dossiers"),
-        ("NavPaneExpandToCurrentFolder", v.nav_expand_to_current_folder.map(b), "volet : développer jusqu'au dossier courant"),
-        ("ShowSyncProviderNotifications", v.sync_provider_notifications.map(b), "suggestions du fournisseur de synchronisation"),
+        (
+            "NavPaneExpandToCurrentFolder",
+            v.nav_expand_to_current_folder.map(b),
+            "volet : développer jusqu'au dossier courant",
+        ),
+        (
+            "ShowSyncProviderNotifications",
+            v.sync_provider_notifications.map(b),
+            "suggestions du fournisseur de synchronisation",
+        ),
         ("UseCompactMode", v.compact_mode.map(b), "mode compact"),
         ("ShowStatusBar", v.show_status_bar.map(b), "barre d'état"),
         ("HideDrivesWithNoMedia", v.hide_drives_with_no_media.map(b), "masquer les lecteurs sans média"),
@@ -99,7 +107,19 @@ mod tests {
         let cfg = Config::from_toml(toml).unwrap();
         let shell = MockShell::default();
         let mut g = ConflictGuard::new(5, 30);
-        let mut ctx = Ctx { reg, shell: &shell, backup: b, cfg: &cfg, guard: &mut g, dry_run: false, now_ms: 0, build: 26200, defer_shell: false, elevated: false, report: Report::default() };
+        let mut ctx = Ctx {
+            reg,
+            shell: &shell,
+            backup: b,
+            cfg: &cfg,
+            guard: &mut g,
+            dry_run: false,
+            now_ms: 0,
+            build: 26200,
+            defer_shell: false,
+            elevated: false,
+            report: Report::default(),
+        };
         ExplorerView.apply(&mut ctx).unwrap();
     }
 

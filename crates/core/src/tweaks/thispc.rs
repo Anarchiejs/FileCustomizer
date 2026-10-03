@@ -19,7 +19,8 @@ use crate::tweak::*;
 pub static DRIVES_META: TweakMeta = TweakMeta {
     id: "thispc-drives",
     name: "Ce PC : lecteurs masqués",
-    description: "Masque des lecteurs dans l'Explorateur. N'empêche PAS l'accès par chemin (ex. D:\\). Nécessite l'élévation.",
+    description:
+        "Masque des lecteurs dans l'Explorateur. N'empêche PAS l'accès par chemin (ex. D:\\). Nécessite l'élévation.",
     touches: r"HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer : NoDrives (bitmask ; clé protégée en écriture pour l'utilisateur)",
     needs_elevation: true,
 };
@@ -41,7 +42,12 @@ fn gated_apply(ctx: &mut Ctx, id: &str, what: &str, d: &[RegSetting]) -> Result<
     if !ctx.elevated && !ctx.dry_run {
         let stale = ctx.backup.entries_for(id).any(|e| !d.iter().any(|s| s.key == e.key && s.name == e.name));
         if stale || detect_registry(ctx, d)?.iter().any(|i| i.status == ItemStatus::Pending) {
-            ctx.report.push(id, ChangeKind::Skipped, what, "clé protégée en écriture : nécessite l'élévation (`explorerbender apply --elevate`, invite UAC)");
+            ctx.report.push(
+                id,
+                ChangeKind::Skipped,
+                what,
+                "clé protégée en écriture : nécessite l'élévation (`explorerbender apply --elevate`, invite UAC)",
+            );
             return Ok(());
         }
     }
@@ -123,7 +129,12 @@ pub const FOLDERS: &[(&str, &[&str], &str, &str)] = &[
     ("pictures", &["pictures", "images"], "{0ddd015d-b06c-45d5-8c4c-f59713854639}", "Images"),
     ("music", &["music", "musique"], "{a0c69a99-21c8-4671-8703-7934162fcf1d}", "Musique"),
     ("videos", &["videos", "vidéos"], "{35286a68-3c57-41a1-bbb1-0eae73d76c95}", "Vidéos"),
-    ("downloads", &["downloads", "téléchargements", "telechargements"], "{7d83ee9b-2244-4e70-b1f5-5393042af1e4}", "Téléchargements"),
+    (
+        "downloads",
+        &["downloads", "téléchargements", "telechargements"],
+        "{7d83ee9b-2244-4e70-b1f5-5393042af1e4}",
+        "Téléchargements",
+    ),
     ("3d-objects", &["3d-objects", "3d objects", "objets 3d"], "{31C0DD25-9439-4F12-BF41-7FF4EDA38722}", "Objets 3D"),
 ];
 
@@ -244,15 +255,42 @@ mod tests {
 
     fn reg_with_folders() -> MockRegistry {
         let r = MockRegistry::new();
-        let r = r.with_value(bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Native), "ThisPCPolicy", RegValue::Sz("Show".into()));
-        r.with_value(bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Wow32), "ThisPCPolicy", RegValue::Sz("Show".into()))
+        let r = r.with_value(
+            bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Native),
+            "ThisPCPolicy",
+            RegValue::Sz("Show".into()),
+        );
+        r.with_value(
+            bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Wow32),
+            "ThisPCPolicy",
+            RegValue::Sz("Show".into()),
+        )
     }
 
-    fn run(tweak: &dyn Tweak, toml: &str, reg: &MockRegistry, b: &mut BackupStore, elevated: bool, dry: bool) -> Report {
+    fn run(
+        tweak: &dyn Tweak,
+        toml: &str,
+        reg: &MockRegistry,
+        b: &mut BackupStore,
+        elevated: bool,
+        dry: bool,
+    ) -> Report {
         let cfg = Config::from_toml(toml).unwrap();
         let shell = MockShell::default();
         let mut g = ConflictGuard::new(5, 30);
-        let mut ctx = Ctx { reg, shell: &shell, backup: b, cfg: &cfg, guard: &mut g, dry_run: dry, now_ms: 0, build: 26200, defer_shell: false, elevated, report: Report::default() };
+        let mut ctx = Ctx {
+            reg,
+            shell: &shell,
+            backup: b,
+            cfg: &cfg,
+            guard: &mut g,
+            dry_run: dry,
+            now_ms: 0,
+            build: 26200,
+            defer_shell: false,
+            elevated,
+            report: Report::default(),
+        };
         tweak.apply(&mut ctx).unwrap();
         ctx.report
     }
@@ -305,10 +343,16 @@ mod tests {
         let mut b = BackupStore::in_memory();
         run(&ThisPcFolders, "[this_pc]\nhide_folders = [\"videos\"]", &reg, &mut b, true, false);
         for v in [View::Native, View::Wow32] {
-            assert_eq!(reg.get_value(&bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", v), "ThisPCPolicy").unwrap(), Some(RegValue::Sz("Hide".into())));
+            assert_eq!(
+                reg.get_value(&bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", v), "ThisPCPolicy").unwrap(),
+                Some(RegValue::Sz("Hide".into()))
+            );
         }
         run(&ThisPcFolders, "", &reg, &mut b, true, false);
-        assert_eq!(reg.get_value(&bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Native), "ThisPCPolicy").unwrap(), Some(RegValue::Sz("Show".into())));
+        assert_eq!(
+            reg.get_value(&bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Native), "ThisPCPolicy").unwrap(),
+            Some(RegValue::Sz("Show".into()))
+        );
         assert!(b.is_empty());
     }
 
@@ -317,7 +361,9 @@ mod tests {
         // Pas de PropertyBag ni de Policies\Explorer : les clés créées doivent aussi passer le filtre.
         let reg = MockRegistry::new()
             .with_key(RegKey::hklm(format!(r"{FD_ROOT}\{{35286a68-3c57-41a1-bbb1-0eae73d76c95}}")))
-            .with_key(RegKey::hklm(format!(r"{FD_ROOT}\{{35286a68-3c57-41a1-bbb1-0eae73d76c95}}")).with_view(View::Wow32))
+            .with_key(
+                RegKey::hklm(format!(r"{FD_ROOT}\{{35286a68-3c57-41a1-bbb1-0eae73d76c95}}")).with_view(View::Wow32),
+            )
             .with_key(RegKey::hkcu(r"Software\Microsoft\Windows\CurrentVersion"));
         let mut b = BackupStore::in_memory();
         run(&ThisPcFolders, "[this_pc]\nhide_folders = [\"videos\"]", &reg, &mut b, true, false);

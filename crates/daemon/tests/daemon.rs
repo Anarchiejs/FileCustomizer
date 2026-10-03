@@ -9,7 +9,9 @@ use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::CloseHandle;
-use windows::Win32::System::Threading::{OpenEventW, OpenMutexW, SetEvent, EVENT_MODIFY_STATE, SYNCHRONIZATION_SYNCHRONIZE};
+use windows::Win32::System::Threading::{
+    OpenEventW, OpenMutexW, SetEvent, EVENT_MODIFY_STATE, SYNCHRONIZATION_SYNCHRONIZE,
+};
 
 struct TempHome(PathBuf);
 
@@ -130,12 +132,16 @@ fn lifecycle_status_reload_and_clean_stop() {
     let before = std::fs::metadata(&status).unwrap().modified().unwrap();
     std::thread::sleep(Duration::from_millis(1100));
     std::fs::write(&cfg, "[general]\nlog_level = \"debug\"\n").unwrap();
-    let reloaded = wait_until(Duration::from_secs(10), || std::fs::metadata(&status).unwrap().modified().unwrap() > before);
+    let reloaded =
+        wait_until(Duration::from_secs(10), || std::fs::metadata(&status).unwrap().modified().unwrap() > before);
 
     // Config invalide : signalée dans status.json, le démon continue de tourner.
     std::fs::write(&cfg, "[general\n").unwrap();
     let reported = wait_until(Duration::from_secs(10), || {
-        std::fs::read_to_string(&status).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok()).is_some_and(|v| !v["config_error"].is_null())
+        std::fs::read_to_string(&status)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .is_some_and(|v| !v["config_error"].is_null())
     });
     let alive = d.try_wait().unwrap().is_none();
 

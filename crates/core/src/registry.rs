@@ -45,11 +45,7 @@ impl RegKey {
     }
     /// Parent immédiat, `None` à la racine d'une ruche.
     pub fn parent(&self) -> Option<Self> {
-        self.path.rsplit_once('\\').map(|(p, _)| Self {
-            hive: self.hive,
-            path: p.to_string(),
-            view: self.view,
-        })
+        self.path.rsplit_once('\\').map(|(p, _)| Self { hive: self.hive, path: p.to_string(), view: self.view })
     }
     pub fn display(&self) -> String {
         let h = match self.hive {
@@ -285,9 +281,7 @@ mod win {
         let p = wide(&key.path);
         let mut h = HKEY::default();
         // SAFETY: `p` est un chemin UTF-16 terminé par NUL ; `h` est une sortie locale valide.
-        let r = unsafe {
-            RegOpenKeyExW(root(key.hive), PCWSTR(p.as_ptr()), None, sam(key.view, access), &mut h)
-        };
+        let r = unsafe { RegOpenKeyExW(root(key.hive), PCWSTR(p.as_ptr()), None, sam(key.view, access), &mut h) };
         if r == ERROR_FILE_NOT_FOUND || r == ERROR_PATH_NOT_FOUND {
             return Ok(None);
         }
@@ -331,9 +325,7 @@ mod win {
             let mut ty = REG_VALUE_TYPE(0);
             let mut len: u32 = 0;
             // SAFETY: `h` est une clé ouverte ; `n` est terminé par NUL ; on ne demande que le type et la taille.
-            let r = unsafe {
-                RegQueryValueExW(h.0, PCWSTR(n.as_ptr()), None, Some(&mut ty), None, Some(&mut len))
-            };
+            let r = unsafe { RegQueryValueExW(h.0, PCWSTR(n.as_ptr()), None, Some(&mut ty), None, Some(&mut len)) };
             if r == ERROR_FILE_NOT_FOUND {
                 return Ok(None);
             }
@@ -343,22 +335,14 @@ mod win {
             let mut buf = vec![0u8; len as usize];
             // SAFETY: `buf` fait exactement `len` octets, taille transmise à l'API qui n'écrit pas au-delà.
             let r = unsafe {
-                RegQueryValueExW(
-                    h.0,
-                    PCWSTR(n.as_ptr()),
-                    None,
-                    Some(&mut ty),
-                    Some(buf.as_mut_ptr()),
-                    Some(&mut len),
-                )
+                RegQueryValueExW(h.0, PCWSTR(n.as_ptr()), None, Some(&mut ty), Some(buf.as_mut_ptr()), Some(&mut len))
             };
             if r != ERROR_SUCCESS {
                 return Err(map_err(r, key));
             }
             buf.truncate(len as usize);
-            let utf16 = |b: &[u8]| -> Vec<u16> {
-                b.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect()
-            };
+            let utf16 =
+                |b: &[u8]| -> Vec<u16> { b.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect() };
             let trim0 = |mut v: Vec<u16>| {
                 while v.last() == Some(&0) {
                     v.pop();
@@ -366,21 +350,14 @@ mod win {
                 String::from_utf16_lossy(&v)
             };
             Ok(Some(match ty {
-                REG_DWORD if buf.len() >= 4 => {
-                    RegValue::Dword(u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]))
-                }
-                REG_QWORD if buf.len() >= 8 => {
-                    RegValue::Qword(u64::from_le_bytes(buf[..8].try_into().unwrap()))
-                }
+                REG_DWORD if buf.len() >= 4 => RegValue::Dword(u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]])),
+                REG_QWORD if buf.len() >= 8 => RegValue::Qword(u64::from_le_bytes(buf[..8].try_into().unwrap())),
                 REG_SZ => RegValue::Sz(trim0(utf16(&buf))),
                 REG_EXPAND_SZ => RegValue::ExpandSz(trim0(utf16(&buf))),
                 REG_MULTI_SZ => {
                     let s = utf16(&buf);
                     RegValue::MultiSz(
-                        s.split(|c| *c == 0)
-                            .filter(|p| !p.is_empty())
-                            .map(String::from_utf16_lossy)
-                            .collect(),
+                        s.split(|c| *c == 0).filter(|p| !p.is_empty()).map(String::from_utf16_lossy).collect(),
                     )
                 }
                 _ => RegValue::Binary(buf),
@@ -394,9 +371,7 @@ mod win {
                 RegValue::Dword(v) => (REG_DWORD, v.to_le_bytes().to_vec()),
                 RegValue::Qword(v) => (REG_QWORD, v.to_le_bytes().to_vec()),
                 RegValue::Sz(s) => (REG_SZ, wide(s).iter().flat_map(|c| c.to_le_bytes()).collect()),
-                RegValue::ExpandSz(s) => {
-                    (REG_EXPAND_SZ, wide(s).iter().flat_map(|c| c.to_le_bytes()).collect())
-                }
+                RegValue::ExpandSz(s) => (REG_EXPAND_SZ, wide(s).iter().flat_map(|c| c.to_le_bytes()).collect()),
                 RegValue::MultiSz(v) => {
                     let mut u: Vec<u16> = Vec::new();
                     for s in v {
@@ -475,7 +450,16 @@ mod win {
                 let mut len = buf.len() as u32;
                 // SAFETY: `buf` est un tampon local de `len` caractères, longueur transmise à l'API.
                 let r = unsafe {
-                    RegEnumValueW(h.0, i, Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut len, None, None, None, None)
+                    RegEnumValueW(
+                        h.0,
+                        i,
+                        Some(windows::core::PWSTR(buf.as_mut_ptr())),
+                        &mut len,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
                 };
                 if r == ERROR_NO_MORE_ITEMS {
                     break;

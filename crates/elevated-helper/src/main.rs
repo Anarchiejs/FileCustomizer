@@ -17,7 +17,8 @@ use eb_core::{log, log_error, log_info, paths, profile};
 
 fn finish(report: &Report, ok: bool) -> ! {
     let _ = std::fs::create_dir_all(paths::data_dir());
-    let json = serde_json::to_vec_pretty(&serde_json::json!({ "ok": ok, "changes": report.changes })).unwrap_or_default();
+    let json =
+        serde_json::to_vec_pretty(&serde_json::json!({ "ok": ok, "changes": report.changes })).unwrap_or_default();
     let _ = std::fs::write(paths::elevated_result(), json);
     std::process::exit(if ok { 0 } else { 1 });
 }
@@ -30,7 +31,9 @@ fn check_data_dir() -> Result<(), String> {
     let tmp = backup.with_extension("json.tmp");
     for p in [paths::data_dir(), paths::log_dir(), backup, tmp, paths::elevated_result()] {
         match std::fs::symlink_metadata(&p) {
-            Ok(m) if is_reparse_point(&m) => return Err(format!("{} est un lien ou un point de jonction : refusé", p.display())),
+            Ok(m) if is_reparse_point(&m) => {
+                return Err(format!("{} est un lien ou un point de jonction : refusé", p.display()))
+            }
             _ => {}
         }
     }

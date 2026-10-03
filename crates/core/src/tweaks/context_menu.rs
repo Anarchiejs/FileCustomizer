@@ -34,7 +34,10 @@ pub struct ShellExt {
 
 fn is_guid(s: &str) -> bool {
     let t = s.trim();
-    t.len() == 38 && t.starts_with('{') && t.ends_with('}') && t[1..37].chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+    t.len() == 38
+        && t.starts_with('{')
+        && t.ends_with('}')
+        && t[1..37].chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
 fn sz(v: Option<RegValue>) -> Option<String> {
@@ -50,9 +53,12 @@ pub fn discover_extensions(reg: &dyn RegistryBackend) -> Result<Vec<ShellExt>> {
     let mut by_clsid: BTreeMap<String, String> = BTreeMap::new();
     for (hive, base) in [(Hive::Hklm, r"SOFTWARE\Classes"), (Hive::Hkcu, r"Software\Classes")] {
         for root in CLASS_ROOTS {
-            let k = RegKey { hive, path: format!(r"{base}\{root}\shellex\ContextMenuHandlers"), view: Default::default() };
+            let k =
+                RegKey { hive, path: format!(r"{base}\{root}\shellex\ContextMenuHandlers"), view: Default::default() };
             for h in reg.list_subkeys(&k)? {
-                let clsid = sz(reg.get_value(&k.child(&h), "")?).filter(|s| is_guid(s)).or_else(|| is_guid(&h).then(|| h.clone()));
+                let clsid = sz(reg.get_value(&k.child(&h), "")?)
+                    .filter(|s| is_guid(s))
+                    .or_else(|| is_guid(&h).then(|| h.clone()));
                 if let Some(c) = clsid {
                     let entry = by_clsid.entry(c.to_lowercase()).or_default();
                     if entry.is_empty() && !is_guid(&h) {
@@ -70,11 +76,12 @@ pub fn discover_extensions(reg: &dyn RegistryBackend) -> Result<Vec<ShellExt>> {
             }
         }
     }
-    let blocked: Vec<String> = [RegKey::hkcu(BLOCKED), RegKey::hklm(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked")]
-        .iter()
-        .flat_map(|k| reg.list_values(k).unwrap_or_default())
-        .map(|(n, _)| n.to_lowercase())
-        .collect();
+    let blocked: Vec<String> =
+        [RegKey::hkcu(BLOCKED), RegKey::hklm(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked")]
+            .iter()
+            .flat_map(|k| reg.list_values(k).unwrap_or_default())
+            .map(|(n, _)| n.to_lowercase())
+            .collect();
     let mut v: Vec<ShellExt> = by_clsid
         .into_iter()
         .map(|(clsid, name)| ShellExt {
@@ -193,7 +200,10 @@ impl Tweak for ContextMenu {
             w.push(WatchTarget::RegKey { key: RegKey::hkcu(BLOCKED), subtree: false });
         }
         for v in &c.disabled_verbs {
-            w.push(WatchTarget::RegKey { key: RegKey::hkcu(format!(r"Software\Classes\{}", v.trim_matches('\\'))), subtree: false });
+            w.push(WatchTarget::RegKey {
+                key: RegKey::hkcu(format!(r"Software\Classes\{}", v.trim_matches('\\'))),
+                subtree: false,
+            });
         }
         w
     }
@@ -211,7 +221,19 @@ mod tests {
         let cfg = Config::from_toml(toml).unwrap();
         let shell = MockShell::default();
         let mut g = ConflictGuard::new(5, 30);
-        let mut ctx = Ctx { reg, shell: &shell, backup: b, cfg: &cfg, guard: &mut g, dry_run: false, now_ms: 0, build: 26200, defer_shell: false, elevated: false, report: Report::default() };
+        let mut ctx = Ctx {
+            reg,
+            shell: &shell,
+            backup: b,
+            cfg: &cfg,
+            guard: &mut g,
+            dry_run: false,
+            now_ms: 0,
+            build: 26200,
+            defer_shell: false,
+            elevated: false,
+            report: Report::default(),
+        };
         ContextMenu.apply(&mut ctx).unwrap();
         ctx.report
     }
@@ -251,8 +273,15 @@ mod tests {
     fn verb_disable_is_restricted_to_existing_shell_verbs() {
         let reg = MockRegistry::new().with_key(RegKey::hklm(r"SOFTWARE\Classes\Directory\shell\cmd"));
         let mut b = BackupStore::in_memory();
-        let r = run("[context_menu]\ndisabled_verbs = ['Directory\\shell\\cmd', 'Software\\Run', 'Directory\\shell\\absent']", &reg, &mut b);
-        assert!(reg.get_value(&RegKey::hkcu(r"Software\Classes\Directory\shell\cmd"), "LegacyDisable").unwrap().is_some());
+        let r = run(
+            "[context_menu]\ndisabled_verbs = ['Directory\\shell\\cmd', 'Software\\Run', 'Directory\\shell\\absent']",
+            &reg,
+            &mut b,
+        );
+        assert!(reg
+            .get_value(&RegKey::hkcu(r"Software\Classes\Directory\shell\cmd"), "LegacyDisable")
+            .unwrap()
+            .is_some());
         assert_eq!(r.changes.iter().filter(|c| c.kind == ChangeKind::Skipped).count(), 2);
         assert!(!reg.key_exists(&RegKey::hkcu(r"Software\Classes\Software\Run")).unwrap());
         run("", &reg, &mut b);

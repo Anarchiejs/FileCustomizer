@@ -48,7 +48,13 @@ impl Session {
         Ok(s)
     }
 
-    fn with_ctx<R>(&mut self, cfg: &Config, dry_run: bool, defer_shell: bool, f: impl FnOnce(&mut Ctx) -> R) -> (R, Report) {
+    fn with_ctx<R>(
+        &mut self,
+        cfg: &Config,
+        dry_run: bool,
+        defer_shell: bool,
+        f: impl FnOnce(&mut Ctx) -> R,
+    ) -> (R, Report) {
         self.guard.configure(cfg.general.conflict_max_rewrites, cfg.general.conflict_window_secs);
         let mut ctx = Ctx {
             reg: &self.reg,
