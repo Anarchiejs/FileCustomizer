@@ -43,8 +43,10 @@ fn target_instance(home: &Path) {
 
 fn instance_running() -> bool {
     let name = wide(&paths::mutex_name());
+    // SAFETY: `name` est un nom UTF-16 terminé par NUL, vivant jusqu'à la fin de l'appel.
     match unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(name.as_ptr())) } {
         Ok(h) => {
+            // SAFETY: `h` vient d'être ouvert et n'est refermé qu'ici.
             let _ = unsafe { CloseHandle(h) };
             true
         }
@@ -54,6 +56,7 @@ fn instance_running() -> bool {
 
 fn signal_stop() -> bool {
     let name = wide(&paths::stop_event_name());
+    // SAFETY: `name` est un nom UTF-16 terminé par NUL, vivant jusqu'à la fin de l'appel ; le handle obtenu est refermé aussitôt.
     unsafe {
         let Ok(h) = OpenEventW(EVENT_MODIFY_STATE, false, PCWSTR(name.as_ptr())) else { return false };
         let ok = SetEvent(h).is_ok();

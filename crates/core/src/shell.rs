@@ -114,6 +114,7 @@ mod win {
     impl WinShell {
         pub fn new() -> Result<Self> {
             // STA : le serveur de la commande est déclaré `ThreadingModel=Apartment`.
+            // SAFETY: appelé une fois par `WinShell`, équilibré par `CoUninitialize` dans `Drop`.
             let hr = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) };
             // S_FALSE (déjà initialisé) est acceptable ; un autre mode est un vrai problème.
             if hr.is_err() {
@@ -126,6 +127,7 @@ mod win {
     impl Drop for WinShell {
         fn drop(&mut self) {
             if self.com_initialized {
+                // SAFETY: équilibre le `CoInitializeEx` réussi de `new` sur le même thread.
                 unsafe { CoUninitialize() };
             }
         }
@@ -138,11 +140,13 @@ mod win {
     fn item_from_parsing(name: &str) -> Result<IShellItem> {
         let n = wide(name);
         let item: IShellItem =
+            // SAFETY: `n` est terminé par NUL et vit pendant l'appel.
             unsafe { SHCreateItemFromParsingName(PCWSTR(n.as_ptr()), None::<&IBindCtx>)? };
         Ok(item)
     }
 
     fn display_name(item: &IShellItem, kind: SIGDN) -> Result<String> {
+        // SAFETY: `p` est alloué par le Shell, copié dans `s` puis libéré une seule fois avec `CoTaskMemFree`.
         unsafe {
             let p: PWSTR = item.GetDisplayName(kind)?;
             let s = p.to_string().unwrap_or_default();
@@ -153,6 +157,7 @@ mod win {
 
     fn is_pinned_key() -> Result<PROPERTYKEY> {
         let mut k = PROPERTYKEY::default();
+        // SAFETY: `w!` produit une chaîne statique terminée par NUL ; `k` est une sortie locale.
         unsafe { PSGetPropertyKeyFromName(w!("System.Home.IsPinned"), &mut k)? };
         Ok(k)
     }
@@ -162,10 +167,13 @@ mod win {
     /// l'action, exactement comme quand l'Explorateur exécute l'entrée de menu correspondante.
     fn run_pin_command(verb: &str, parsing_name: &str) -> Result<()> {
         let item = item_from_parsing(parsing_name)?;
+        // SAFETY: `item` est un `IShellItem` valide obtenu juste avant.
         let array = unsafe { SHCreateShellItemArrayFromShellItem::<_, IShellItemArray>(&item)? };
         let cmd: IExecuteCommand =
+            // SAFETY: COM est initialisé (STA) par `WinShell::new` avant tout appel.
             unsafe { CoCreateInstance(&CLSID_PIN_TO_FREQUENT, None, CLSCTX_INPROC_SERVER)? };
         let v = wide(verb);
+        // SAFETY: `v` est terminé par NUL et vit pendant le bloc ; `cmd` et `array` sont des interfaces COM valides.
         unsafe {
             if let Ok(init) = cmd.cast::<IInitializeCommand>() {
                 init.Initialize(PCWSTR(v.as_ptr()), None::<&IPropertyBag>)?;
@@ -180,17 +188,20 @@ mod win {
         fn quick_access_items(&self) -> Result<Vec<QaItem>> {
             let key = is_pinned_key()?;
             let root = item_from_parsing(QUICK_ACCESS_PARSING)?;
+            // SAFETY: `root` est un `IShellItem` valide ; BHID_EnumItems est un GUID statique.
             let en: IEnumShellItems = unsafe { root.BindToHandler(None::<&IBindCtx>, &BHID_EnumItems)? };
             let mut out = Vec::new();
             loop {
                 let mut slot = [None::<IShellItem>];
                 let mut fetched = 0u32;
+                // SAFETY: `slot` contient un élément et `fetched` est une sortie locale.
                 unsafe { en.Next(&mut slot, Some(&mut fetched))? };
                 if fetched == 0 {
                     break;
                 }
                 let Some(item) = slot[0].take() else { break };
                 // Les fichiers récents ne nous intéressent pas : seulement les dossiers.
+                // SAFETY: `item` est un `IShellItem` valide renvoyé par l'énumérateur.
                 let is_folder = unsafe { item.GetAttributes(SFGAO_FOLDER) }
                     .map(|a| a.0 & SFGAO_FOLDER.0 != 0)
                     .unwrap_or(false);
@@ -200,6 +211,7 @@ mod win {
                 let pinned = item
                     .cast::<IShellItem2>()
                     .ok()
+                    // SAFETY: `i2` est une interface valide ; `key` est une PROPERTYKEY initialisée.
                     .and_then(|i2| unsafe { i2.GetBool(&key) }.ok())
                     .map(|b| b.as_bool())
                     .unwrap_or(false);
@@ -221,6 +233,7 @@ mod win {
         }
 
         fn notify_settings_changed(&self) {
+            // SAFETY: diffusions sans pointeur hormis `ShellState`, chaîne statique produite par `w!`.
             unsafe {
                 SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None);
                 // Délai court : on ne veut pas bloquer sur une fenêtre qui ne répond plus.
@@ -239,6 +252,7 @@ mod win {
         fn resolve_indirect_string(&self, s: &str) -> Option<String> {
             let src = wide(s);
             let mut buf = [0u16; 256];
+            // SAFETY: `src` est terminé par NUL ; `buf` est un tampon local dont la taille est transmise.
             unsafe { SHLoadIndirectString(PCWSTR(src.as_ptr()), &mut buf, None).ok()? };
             let len = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
             Some(String::from_utf16_lossy(&buf[..len]))

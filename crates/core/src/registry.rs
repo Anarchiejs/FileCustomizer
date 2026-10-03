@@ -274,6 +274,7 @@ mod win {
     struct Handle(HKEY);
     impl Drop for Handle {
         fn drop(&mut self) {
+            // SAFETY: `self.0` est une clé ouverte par `open`/`create`, refermée une seule fois ici.
             unsafe {
                 let _ = RegCloseKey(self.0);
             }
@@ -283,6 +284,7 @@ mod win {
     fn open(key: &RegKey, access: REG_SAM_FLAGS) -> Result<Option<Handle>> {
         let p = wide(&key.path);
         let mut h = HKEY::default();
+        // SAFETY: `p` est un chemin UTF-16 terminé par NUL ; `h` est une sortie locale valide.
         let r = unsafe {
             RegOpenKeyExW(root(key.hive), PCWSTR(p.as_ptr()), None, sam(key.view, access), &mut h)
         };
@@ -298,6 +300,7 @@ mod win {
     fn create(key: &RegKey) -> Result<Handle> {
         let p = wide(&key.path);
         let mut h = HKEY::default();
+        // SAFETY: `p` est un chemin UTF-16 terminé par NUL ; `h` est une sortie locale valide.
         let r = unsafe {
             RegCreateKeyExW(
                 root(key.hive),
@@ -327,6 +330,7 @@ mod win {
             let n = wide(name);
             let mut ty = REG_VALUE_TYPE(0);
             let mut len: u32 = 0;
+            // SAFETY: `h` est une clé ouverte ; `n` est terminé par NUL ; on ne demande que le type et la taille.
             let r = unsafe {
                 RegQueryValueExW(h.0, PCWSTR(n.as_ptr()), None, Some(&mut ty), None, Some(&mut len))
             };
@@ -337,6 +341,7 @@ mod win {
                 return Err(map_err(r, key));
             }
             let mut buf = vec![0u8; len as usize];
+            // SAFETY: `buf` fait exactement `len` octets, taille transmise à l'API qui n'écrit pas au-delà.
             let r = unsafe {
                 RegQueryValueExW(
                     h.0,
@@ -352,7 +357,7 @@ mod win {
             }
             buf.truncate(len as usize);
             let utf16 = |b: &[u8]| -> Vec<u16> {
-                b.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect()
+                b.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect()
             };
             let trim0 = |mut v: Vec<u16>| {
                 while v.last() == Some(&0) {
@@ -403,6 +408,7 @@ mod win {
                 }
                 RegValue::Binary(b) => (REG_BINARY, b.clone()),
             };
+            // SAFETY: `h` est une clé ouverte ; `n` est terminé par NUL ; `data` est une slice dont la taille est connue.
             let r = unsafe { RegSetValueExW(h.0, PCWSTR(n.as_ptr()), None, ty, Some(&data)) };
             if r != ERROR_SUCCESS {
                 return Err(map_err(r, key));
@@ -413,6 +419,7 @@ mod win {
         fn delete_value(&self, key: &RegKey, name: &str) -> Result<()> {
             let Some(h) = open(key, KEY_SET_VALUE)? else { return Ok(()) };
             let n = wide(name);
+            // SAFETY: `h` est une clé ouverte ; `n` est terminé par NUL.
             let r = unsafe { RegDeleteValueW(h.0, PCWSTR(n.as_ptr())) };
             if r != ERROR_SUCCESS && r != ERROR_FILE_NOT_FOUND {
                 return Err(map_err(r, key));
@@ -423,6 +430,7 @@ mod win {
         fn delete_key_if_empty(&self, key: &RegKey) -> Result<bool> {
             let Some(h) = open(key, KEY_QUERY_VALUE)? else { return Ok(false) };
             let (mut subkeys, mut values) = (0u32, 0u32);
+            // SAFETY: `h` est une clé ouverte ; les pointeurs de sortie sont des variables locales.
             let r = unsafe {
                 RegQueryInfoKeyW(
                     h.0,
@@ -450,6 +458,7 @@ mod win {
             let leaf = key.path.rsplit('\\').next().unwrap_or_default();
             let Some(ph) = open(&parent, KEY_WRITE_ACCESS)? else { return Ok(false) };
             let l = wide(leaf);
+            // SAFETY: `ph` est la clé parente ouverte ; `l` est terminé par NUL.
             let r = unsafe { RegDeleteKeyW(ph.0, PCWSTR(l.as_ptr())) };
             if r != ERROR_SUCCESS {
                 return Err(map_err(r, key));
@@ -464,6 +473,7 @@ mod win {
             loop {
                 let mut buf = vec![0u16; 16384];
                 let mut len = buf.len() as u32;
+                // SAFETY: `buf` est un tampon local de `len` caractères, longueur transmise à l'API.
                 let r = unsafe {
                     RegEnumValueW(h.0, i, Some(windows::core::PWSTR(buf.as_mut_ptr())), &mut len, None, None, None, None)
                 };
@@ -493,6 +503,7 @@ mod win {
             loop {
                 let mut buf = [0u16; 256];
                 let mut len = buf.len() as u32;
+                // SAFETY: `buf` est un tampon local de `len` caractères, longueur transmise à l'API.
                 let r = unsafe {
                     RegEnumKeyExW(
                         h.0,

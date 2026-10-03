@@ -29,6 +29,7 @@ impl RegWatch {
         let mut subtree = subtree;
         loop {
             if let Some(h) = open_for_notify(&target) {
+                // SAFETY: création d'un événement anonyme, refermé dans `Drop`.
                 let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()).ok()? };
                 let mut w = RegWatch { hkey: h, event, subtree, label: target.display() };
                 if w.arm() {
@@ -43,6 +44,7 @@ impl RegWatch {
 
     /// (Ré)arme la notification. À appeler après chaque signal : elle est à usage unique.
     pub fn arm(&mut self) -> bool {
+        // SAFETY: `self.hkey` et `self.event` restent ouverts tant que `self` vit.
         unsafe {
             let _ = ResetEvent(self.event);
             RegNotifyChangeKeyValue(
@@ -62,6 +64,7 @@ impl RegWatch {
 
 impl Drop for RegWatch {
     fn drop(&mut self) {
+        // SAFETY: handles possédés par `self`, refermés une seule fois.
         unsafe {
             let _ = RegCloseKey(self.hkey);
             let _ = CloseHandle(self.event);
@@ -77,6 +80,7 @@ fn open_for_notify(key: &RegKey) -> Option<HKEY> {
     let sam = if key.view == View::Wow32 { KEY_NOTIFY | KEY_WOW64_32KEY } else { KEY_NOTIFY };
     let p = wide(&key.path);
     let mut h = HKEY::default();
+    // SAFETY: `p` est un chemin UTF-16 terminé par NUL ; `h` est une sortie locale.
     let r = unsafe { RegOpenKeyExW(root, PCWSTR(p.as_ptr()), None, sam, &mut h) };
     (r == ERROR_SUCCESS).then_some(h)
 }
@@ -93,8 +97,9 @@ pub struct DirWatch {
 }
 
 impl DirWatch {
-    pub fn open(dir: &Path, files: &[&str]) -> Option<Box<Self>> {
+    pub fn open(dir: &Path, files: &[&str]) -> Option<Self> {
         let d = wide(&dir.to_string_lossy());
+        // SAFETY: `d` est un chemin UTF-16 terminé par NUL ; le handle est refermé dans `Drop`.
         let handle = unsafe {
             CreateFileW(
                 PCWSTR(d.as_ptr()),
@@ -107,20 +112,23 @@ impl DirWatch {
             )
             .ok()?
         };
+        // SAFETY: création d'un événement anonyme, refermé dans `Drop`.
         let event = unsafe { CreateEventW(None, true, false, PCWSTR::null()).ok()? };
-        let mut w = Box::new(DirWatch {
+        // Pas besoin de boxer `DirWatch` lui-même : seuls `overlapped` et `buffer` doivent rester fixes.
+        let mut w = DirWatch {
             dir: handle,
             overlapped: Box::new(OVERLAPPED::default()),
             buffer: Box::new([0u32; 2048]),
             event,
             files: files.iter().map(|f| f.to_lowercase()).collect(),
             label: dir.display().to_string(),
-        });
+        };
         w.overlapped.hEvent = event;
         w.issue().then_some(w)
     }
 
     fn issue(&mut self) -> bool {
+        // SAFETY: `overlapped` et `buffer` sont boxés (adresses stables) et vivent jusqu'au `Drop`, qui attend l'annulation de l'E/S avant de les libérer.
         unsafe {
             let _ = ResetEvent(self.event);
             ReadDirectoryChangesW(
@@ -144,6 +152,7 @@ impl DirWatch {
     /// et relance l'écoute dans tous les cas.
     pub fn collect(&mut self) -> bool {
         let mut bytes = 0u32;
+        // SAFETY: `overlapped` est celui passé à `ReadDirectoryChangesW` ; appel non bloquant après signal de l'événement.
         let ok = unsafe { GetOverlappedResult(self.dir, &*self.overlapped, &mut bytes, false).is_ok() };
         let mut matched = false;
         if !ok || bytes == 0 {
@@ -154,6 +163,7 @@ impl DirWatch {
             let base = self.buffer.as_ptr() as *const u8;
             let mut off = 0usize;
             loop {
+                // SAFETY: le noyau a écrit `bytes` octets de FILE_NOTIFY_INFORMATION dans `buffer`, aligné sur 4 octets (u32) ; `off` et `name_len` viennent de ces entrées et restent dans le tampon.
                 unsafe {
                     let p = base.add(off);
                     let next = *(p as *const u32) as usize;
@@ -181,6 +191,7 @@ impl DirWatch {
 
 impl Drop for DirWatch {
     fn drop(&mut self) {
+        // SAFETY: handles possédés par `self` ; l'E/S est annulée et terminée avant de libérer les tampons.
         unsafe {
             // Annule l'E/S en cours avant de libérer les tampons que le noyau pourrait encore écrire.
             let _ = CancelIo(self.dir);

@@ -143,6 +143,7 @@ fn wide(name: &str) -> Vec<u16> {
 
 fn daemon_running() -> bool {
     let name = wide(&paths::mutex_name());
+    // SAFETY: `name` est un nom UTF-16 terminé par NUL, vivant jusqu'à la fin de l'appel ; le handle obtenu est refermé aussitôt.
     unsafe {
         match OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(name.as_ptr())) {
             Ok(h) => {
@@ -156,6 +157,7 @@ fn daemon_running() -> bool {
 
 fn signal_daemon_stop() -> bool {
     let name = wide(&paths::stop_event_name());
+    // SAFETY: `name` est un nom UTF-16 terminé par NUL, vivant jusqu'à la fin de l'appel ; le handle obtenu est refermé aussitôt.
     unsafe {
         match OpenEventW(EVENT_MODIFY_STATE, false, PCWSTR(name.as_ptr())) {
             Ok(h) => {
@@ -229,6 +231,7 @@ fn run_elevated(verb: &str, dry_run: bool) -> Option<bool> {
         ..Default::default()
     };
     println!("Élévation demandée (invite UAC) pour les réglages protégés (HKLM, Policies)...");
+    // SAFETY: `info` et les chaînes qu'il pointe (`file`, `params`, `verb_w`) vivent pendant tout le bloc ; `hProcess` n'est utilisé qu'après un `ShellExecuteExW` réussi (SEE_MASK_NOCLOSEPROCESS) puis refermé.
     unsafe {
         if ShellExecuteExW(&mut info).is_err() {
             eprintln!("élévation refusée ou impossible : rien n'a été écrit en HKLM.");

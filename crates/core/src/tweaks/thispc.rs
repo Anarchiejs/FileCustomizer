@@ -4,6 +4,7 @@
 //! - `thispc-folders` écrit en HKLM ;
 //! - `thispc-drives` écrit `HKCU\...\Policies\Explorer`, clé en lecture seule pour l'utilisateur
 //!   (ACL constatée sur Windows 11 25H2 : seuls SYSTEM et Administrateurs ont le contrôle total).
+//!
 //! Le démon résident ne les écrit donc jamais.
 
 use crate::config::{Config, ThisPc};

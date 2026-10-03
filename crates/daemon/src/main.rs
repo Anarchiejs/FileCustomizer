@@ -66,6 +66,7 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
 /// Fenêtre de haut niveau CACHÉE (jamais affichée) : une fenêtre « message-only » ne reçoit pas
 /// les diffusions comme `TaskbarCreated`.
 fn create_hidden_window() -> Option<HWND> {
+    // SAFETY: classe et titre sont des chaînes statiques (`w!`) ; `wnd_proc` a la signature attendue par Win32.
     unsafe {
         TASKBAR_CREATED_MSG.store(RegisterWindowMessageW(w!("TaskbarCreated")), Ordering::Relaxed);
         let hinst = GetModuleHandleW(None).ok()?;
@@ -94,8 +95,8 @@ struct Daemon {
     cfg_error: Option<String>,
     started_at: String,
     reg_watches: Vec<RegWatch>,
-    qa_watches: Vec<Box<DirWatch>>,
-    cfg_watch: Option<Box<DirWatch>>,
+    qa_watches: Vec<DirWatch>,
+    cfg_watch: Option<DirWatch>,
     timer: HANDLE,
     timer_armed: bool,
     /// Un événement lié à notre propre action est ignoré jusqu'à cet instant.
@@ -110,6 +111,7 @@ impl Daemon {
             return; // la passe déjà programmée verra l'état le plus récent
         }
         let due = -(ms as i64) * 10_000; // 100 ns, négatif = relatif
+        // SAFETY: `self.timer` est un handle de timer valide ; `due` vit pendant l'appel.
         unsafe {
             let _ = SetWaitableTimer(self.timer, &due, 0, None, None, false);
         }
@@ -201,6 +203,7 @@ impl Daemon {
         }
         self.write_status(&report);
         // Le démon doit rester sous quelques Mo : on rend au système les pages utilisées par COM/Shell.
+        // SAFETY: le pseudo-handle du processus courant est toujours valide.
         unsafe {
             let _ = EmptyWorkingSet(GetCurrentProcess());
         }
@@ -237,6 +240,7 @@ fn main() {
 
     // Instance unique.
     let mutex_name: Vec<u16> = paths::mutex_name().encode_utf16().chain([0]).collect();
+    // SAFETY: `mutex_name` est un nom UTF-16 terminé par NUL, vivant jusqu'à la fin de l'appel ; le handle reste ouvert jusqu'à la fin de `main`.
     let _mutex = unsafe {
         let h = match CreateMutexW(None, false, PCWSTR(mutex_name.as_ptr())) {
             Ok(h) => h,
@@ -274,6 +278,7 @@ fn main() {
     };
 
     let stop_name: Vec<u16> = paths::stop_event_name().encode_utf16().chain([0]).collect();
+    // SAFETY: `stop_name` est un nom UTF-16 terminé par NUL, vivant jusqu'à la fin de l'appel.
     let (stop_event, timer) = unsafe {
         (
             CreateEventW(None, true, false, PCWSTR(stop_name.as_ptr())).unwrap_or_default(),
@@ -324,11 +329,13 @@ fn main() {
             sources.push(Source::Qa(i));
         }
 
+        // SAFETY: `handles` ne contient que des handles d'événements possédés par le démon et encore ouverts.
         let r = unsafe { MsgWaitForMultipleObjects(Some(&handles), false, INFINITE, QS_ALLINPUT) };
         let idx = (r.0.wrapping_sub(WAIT_OBJECT_0.0)) as usize;
 
         if idx == handles.len() {
             // Messages de la fenêtre cachée.
+            // SAFETY: pompe de messages standard sur le thread qui a créé la fenêtre cachée ; `msg` est local.
             unsafe {
                 let mut msg = MSG::default();
                 while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
