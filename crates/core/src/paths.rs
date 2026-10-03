@@ -33,9 +33,27 @@ pub fn automatic_destinations_dir() -> PathBuf {
 }
 pub const QUICK_ACCESS_FILE: &str = "f01b4d95cf55d32a.automaticDestinations-ms";
 
-pub const MUTEX_NAME: &str = "Local\\ExplorerBender.Daemon";
+/// Mutex d'instance unique du démon.
+pub fn mutex_name() -> String {
+    format!("Local\\ExplorerBender.Daemon{}", instance_suffix())
+}
 /// Événement nommé : le CLI le signale pour demander l'arrêt propre du démon.
-pub const STOP_EVENT_NAME: &str = "Local\\ExplorerBender.Stop";
+pub fn stop_event_name() -> String {
+    format!("Local\\ExplorerBender.Stop{}", instance_suffix())
+}
+
+/// Un dossier de données isolé (`EXPLORERBENDER_HOME`) est une instance à part : son démon ne
+/// doit ni être bloqué par le vrai démon de la session, ni pouvoir l'arrêter (tests).
+fn instance_suffix() -> String {
+    match std::env::var_os("EXPLORERBENDER_HOME") {
+        None => String::new(),
+        Some(h) => {
+            // FNV-1a : stable d'un processus à l'autre (contrairement à `DefaultHasher`).
+            let h = h.to_string_lossy().to_lowercase().bytes().fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3));
+            format!(".{h:016x}")
+        }
+    }
+}
 
 /// Profil choisi à la main (`explorerbender apply <profil>`). Absent = les règles décident.
 pub fn profile_override() -> PathBuf {

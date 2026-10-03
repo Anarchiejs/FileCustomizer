@@ -49,11 +49,14 @@ impl Default for BackupFile {
 pub struct BackupStore {
     path: Option<PathBuf>,
     pub data: BackupFile,
+    /// Entrées écartées par `quarantine` : jamais restaurées, mais réécrites telles quelles
+    /// dans le fichier pour ne rien perdre.
+    quarantined: Vec<BackupEntry>,
 }
 
 impl BackupStore {
     pub fn in_memory() -> Self {
-        Self { path: None, data: BackupFile::default() }
+        Self { path: None, data: BackupFile::default(), quarantined: vec![] }
     }
 
     pub fn load(path: &Path) -> Result<Self> {
@@ -68,7 +71,7 @@ impl BackupStore {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => BackupFile::default(),
             Err(e) => return Err(e.into()),
         };
-        Ok(Self { path: Some(path.to_path_buf()), data })
+        Ok(Self { path: Some(path.to_path_buf()), data, quarantined: vec![] })
     }
 
     /// Écriture atomique (fichier temporaire + renommage) pour ne jamais laisser
@@ -79,7 +82,14 @@ impl BackupStore {
             std::fs::create_dir_all(dir)?;
         }
         let tmp = p.with_extension("json.tmp");
-        std::fs::write(&tmp, serde_json::to_vec_pretty(&self.data)?)?;
+        let json = if self.quarantined.is_empty() {
+            serde_json::to_vec_pretty(&self.data)?
+        } else {
+            let mut all = self.data.clone();
+            all.entries.extend(self.quarantined.iter().cloned());
+            serde_json::to_vec_pretty(&all)?
+        };
+        std::fs::write(&tmp, json)?;
         std::fs::rename(&tmp, p)?;
         Ok(())
     }
@@ -150,6 +160,19 @@ impl BackupStore {
         Ok(())
     }
 
+    /// Retire de la liste de travail les entrées que `keep` refuse (elles ne seront plus ni
+    /// lues ni restaurées par ce processus) et renvoie leur nombre.
+    pub fn quarantine(&mut self, keep: impl Fn(&BackupEntry) -> bool) -> usize {
+        let (ok, bad): (Vec<_>, Vec<_>) = std::mem::take(&mut self.data.entries).into_iter().partition(|e| keep(e));
+        self.data.entries = ok;
+        self.quarantined.extend(bad);
+        self.quarantined.len()
+    }
+
+    pub fn quarantined(&self) -> &[BackupEntry] {
+        &self.quarantined
+    }
+
     pub fn is_empty(&self) -> bool {
         self.data.entries.is_empty() && self.data.unpinned_quick_access.is_empty()
     }
@@ -197,6 +220,23 @@ mod tests {
         b.record(&reg, "t", &key(), "v").unwrap();
         assert_eq!(b.find(&key(), "v").unwrap().original, Some(RegValue::Dword(1)));
         assert_eq!(b.data.entries.len(), 1);
+    }
+
+    #[test]
+    fn quarantined_entries_are_hidden_but_kept_on_disk() {
+        let dir = std::env::temp_dir().join(format!("eb-backup-q-{}", std::process::id()));
+        let path = dir.join("backup.json");
+        let reg = MockRegistry::new().with_value(key(), "v", RegValue::Dword(1)).with_value(key(), "w", RegValue::Dword(2));
+        let mut b = BackupStore::load(&path).unwrap();
+        b.record(&reg, "t", &key(), "v").unwrap();
+        b.record(&reg, "bad", &key(), "w").unwrap();
+        assert_eq!(b.quarantine(|e| e.tweak == "t"), 1);
+        assert!(b.find(&key(), "w").is_none());
+        b.remove(&key(), "v").unwrap();
+        let on_disk = BackupStore::load(&path).unwrap();
+        assert_eq!(on_disk.data.entries.len(), 1);
+        assert_eq!(on_disk.data.entries[0].tweak, "bad");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

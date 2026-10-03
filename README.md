@@ -11,7 +11,7 @@ Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'est
 - **Réversible.** Chaque valeur d'origine est sauvegardée (`backup.json`) *avant* d'être modifiée ; `explorerbender restore` remet exactement l'état d'origine (y compris les clés créées par nous et les dossiers désépinglés).
 - **Pas de guerre d'écriture.** Plus de N réécritures de la même valeur en M secondes par un autre outil → le démon s'arrête sur cette valeur et le signale.
 - **Jamais de redémarrage d'`explorer.exe` automatique** : uniquement sur demande explicite (`--restart-explorer`).
-- **Privilèges minimaux.** Le démon n'écrit qu'en HKCU, sans admin. Ce qui est protégé en écriture passe par un **helper élevé lancé à la demande** (invite UAC), jamais par le démon.
+- **Privilèges minimaux.** Le démon n'écrit qu'en HKCU, sans admin. Ce qui est protégé en écriture passe par un **helper élevé lancé à la demande** (invite UAC), jamais par le démon. Le helper ne fait pas confiance aux fichiers de `%APPDATA%` : il ne restaure que les valeurs d'une liste blanche et refuse un dossier de données redirigé (lien, jonction).
 - Pas de réseau, pas de télémétrie.
 
 ## Installation

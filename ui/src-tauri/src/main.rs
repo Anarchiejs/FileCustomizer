@@ -26,7 +26,7 @@ fn daemon_running() -> bool {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Threading::{OpenMutexW, SYNCHRONIZATION_SYNCHRONIZE};
-    let name: Vec<u16> = paths::MUTEX_NAME.encode_utf16().chain([0]).collect();
+    let name: Vec<u16> = paths::mutex_name().encode_utf16().chain([0]).collect();
     unsafe {
         match OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(name.as_ptr())) {
             Ok(h) => {

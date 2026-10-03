@@ -81,6 +81,18 @@ pub fn needs_elevation_for(tweak_id: &str) -> bool {
     tweaks::all().iter().any(|t| t.meta().id == tweak_id && t.meta().needs_elevation)
 }
 
+/// Le helper élevé peut-il se fier à cette entrée de `backup.json` ?
+///
+/// Il ne touche que les entrées « élévation » (tweak élevé, ou clé HKLM quelque part) ; celles-là
+/// doivent figurer dans la liste blanche. Les autres sont laissées au démon/CLI non élevé.
+pub fn elevated_entry_allowed(e: &crate::backup::BackupEntry) -> bool {
+    use crate::registry::Hive;
+    let touches_elevated = needs_elevation_for(&e.tweak)
+        || e.key.hive == Hive::Hklm
+        || e.created_keys.iter().any(|k| k.hive == Hive::Hklm);
+    !touches_elevated || tweaks::thispc::is_trusted_elevated_entry(e)
+}
+
 pub struct TweakDetection {
     pub meta: &'static TweakMeta,
     pub requested: bool,

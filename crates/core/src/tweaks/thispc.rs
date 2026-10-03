@@ -170,6 +170,42 @@ fn desired_folders(ctx: &Ctx, cfg: &ThisPc) -> (Vec<RegSetting>, Vec<String>) {
     (out, notes)
 }
 
+// ---------------------------------------------------------------------------
+// Liste blanche du helper élevé
+// ---------------------------------------------------------------------------
+
+/// Une entrée de `backup.json` peut-elle être restaurée par le helper élevé ?
+///
+/// `backup.json` vit dans `%APPDATA%`, modifiable par n'importe quel processus de l'utilisateur.
+/// Sans ce filtre, une entrée forgée (`HKLM\...\Run`, etc.) serait écrite avec les droits
+/// administrateur à la prochaine invite UAC acceptée. On n'accepte donc que les valeurs exactes
+/// que nos tweaks élevés savent écrire, avec le bon type et les seules clés qu'ils peuvent créer.
+pub fn is_trusted_elevated_entry(e: &crate::backup::BackupEntry) -> bool {
+    if e.tweak == DRIVES_META.id {
+        // Si `Policies\Explorer` (voire `Policies`) n'existait pas, nous les avons créées.
+        let explorer = policies();
+        let allowed_created = |k: &RegKey| *k == explorer || Some(k) == explorer.parent().as_ref();
+        return e.key == explorer
+            && e.name == "NoDrives"
+            && matches!(e.original, None | Some(RegValue::Dword(_)))
+            && e.created_keys.iter().all(allowed_created);
+    }
+    if e.tweak == FOLDERS_META.id {
+        let Some(view_key) = FOLDERS
+            .iter()
+            .flat_map(|(_, _, guid, _)| [bag(guid, View::Native), bag(guid, View::Wow32)])
+            .find(|k| *k == e.key)
+        else {
+            return false;
+        };
+        // La description du dossier existe toujours (vérifié avant d'écrire) : seul PropertyBag peut être créé.
+        return e.name == "ThisPCPolicy"
+            && matches!(e.original, None | Some(RegValue::Sz(_)))
+            && e.created_keys.iter().all(|k| *k == view_key);
+    }
+    false
+}
+
 impl Tweak for ThisPcFolders {
     fn meta(&self) -> &'static TweakMeta {
         &FOLDERS_META
@@ -273,6 +309,63 @@ mod tests {
         run(&ThisPcFolders, "", &reg, &mut b, true, false);
         assert_eq!(reg.get_value(&bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Native), "ThisPCPolicy").unwrap(), Some(RegValue::Sz("Show".into())));
         assert!(b.is_empty());
+    }
+
+    #[test]
+    fn entries_written_by_elevated_tweaks_are_trusted() {
+        // Pas de PropertyBag ni de Policies\Explorer : les clés créées doivent aussi passer le filtre.
+        let reg = MockRegistry::new()
+            .with_key(RegKey::hklm(format!(r"{FD_ROOT}\{{35286a68-3c57-41a1-bbb1-0eae73d76c95}}")))
+            .with_key(RegKey::hklm(format!(r"{FD_ROOT}\{{35286a68-3c57-41a1-bbb1-0eae73d76c95}}")).with_view(View::Wow32))
+            .with_key(RegKey::hkcu(r"Software\Microsoft\Windows\CurrentVersion"));
+        let mut b = BackupStore::in_memory();
+        run(&ThisPcFolders, "[this_pc]\nhide_folders = [\"videos\"]", &reg, &mut b, true, false);
+        run(&ThisPcDrives, "[this_pc]\nhide_drives = [\"D\"]", &reg, &mut b, true, false);
+        assert_eq!(b.data.entries.len(), 3);
+        assert!(b.data.entries.iter().any(|e| !e.created_keys.is_empty()));
+        assert!(b.data.entries.iter().all(is_trusted_elevated_entry), "{:#?}", b.data.entries);
+    }
+
+    #[test]
+    fn forged_entries_are_rejected() {
+        use crate::backup::BackupEntry;
+        let ok = BackupEntry {
+            tweak: FOLDERS_META.id.into(),
+            key: bag("{35286a68-3c57-41a1-bbb1-0eae73d76c95}", View::Native),
+            name: "ThisPCPolicy".into(),
+            existed: true,
+            original: Some(RegValue::Sz("Show".into())),
+            created_keys: vec![],
+        };
+        assert!(is_trusted_elevated_entry(&ok));
+        let forged = [
+            // Clé arbitraire (persistance au démarrage avec les droits admin)
+            BackupEntry {
+                key: RegKey::hklm(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"),
+                name: "x".into(),
+                original: Some(RegValue::Sz("C:\\evil.exe".into())),
+                ..ok.clone()
+            },
+            // Bon emplacement, mauvais nom de valeur
+            BackupEntry { name: "Other".into(), ..ok.clone() },
+            // Bon emplacement, type inattendu
+            BackupEntry { original: Some(RegValue::ExpandSz("%x%".into())), ..ok.clone() },
+            // Suppression de clé arbitraire via created_keys
+            BackupEntry { created_keys: vec![RegKey::hklm(r"SOFTWARE\Policies")], ..ok.clone() },
+            // Tweak non élevé portant une clé HKLM
+            BackupEntry { tweak: "navpane".into(), ..ok.clone() },
+            // NoDrives ailleurs que dans Policies\Explorer
+            BackupEntry {
+                tweak: DRIVES_META.id.into(),
+                key: RegKey::hklm(r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"),
+                name: "NoDrives".into(),
+                original: Some(RegValue::Dword(0)),
+                ..ok.clone()
+            },
+        ];
+        for f in &forged {
+            assert!(!is_trusted_elevated_entry(f), "accepté à tort : {f:?}");
+        }
     }
 
     #[test]

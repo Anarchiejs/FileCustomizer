@@ -26,6 +26,7 @@ name = "eb-daemon"
 version = "0.1.0"
 dependencies = [
  "eb-core",
+ "serde_json",
  "windows",
 ]
 

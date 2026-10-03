@@ -142,7 +142,7 @@ fn wide(name: &str) -> Vec<u16> {
 }
 
 fn daemon_running() -> bool {
-    let name = wide(paths::MUTEX_NAME);
+    let name = wide(&paths::mutex_name());
     unsafe {
         match OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(name.as_ptr())) {
             Ok(h) => {
@@ -155,7 +155,7 @@ fn daemon_running() -> bool {
 }
 
 fn signal_daemon_stop() -> bool {
-    let name = wide(paths::STOP_EVENT_NAME);
+    let name = wide(&paths::stop_event_name());
     unsafe {
         match OpenEventW(EVENT_MODIFY_STATE, false, PCWSTR(name.as_ptr())) {
             Ok(h) => {
@@ -238,6 +238,9 @@ fn run_elevated(verb: &str, dry_run: bool) -> Option<bool> {
         let mut code = 1u32;
         let _ = GetExitCodeProcess(info.hProcess, &mut code);
         let _ = CloseHandle(info.hProcess);
+        if code == 3 {
+            eprintln!("le helper élevé a refusé {} : lien ou point de jonction dans le dossier de données.", paths::data_dir().display());
+        }
         if let Ok(s) = std::fs::read_to_string(paths::elevated_result()) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
                 if let Ok(ch) = serde_json::from_value::<Vec<Change>>(v["changes"].clone()) {

@@ -3,6 +3,8 @@
 //! Il ne fait que ce qui exige l'élévation (les tweaks `needs_elevation`, aujourd'hui l'écriture
 //! HKLM de « Ce PC : dossiers »). Il n'accepte que deux verbes et aucun chemin arbitraire : les
 //! clés écrites viennent d'une table fixe (`tweaks::thispc::FOLDERS`), pas de la config brute.
+//! Il ne fait pas non plus confiance à `backup.json` (modifiable sans élévation) : seules les
+//! entrées de la liste blanche (`tweaks::thispc::is_trusted_elevated_entry`) sont restaurées.
 //! Pas de console : le rapport est écrit dans `elevated-last.json`, relu par l'appelant.
 
 #![windows_subsystem = "windows"]
@@ -18,6 +20,27 @@ fn finish(report: &Report, ok: bool) -> ! {
     let json = serde_json::to_vec_pretty(&serde_json::json!({ "ok": ok, "changes": report.changes })).unwrap_or_default();
     let _ = std::fs::write(paths::elevated_result(), json);
     std::process::exit(if ok { 0 } else { 1 });
+}
+
+/// Le dossier de données est contrôlé par l'utilisateur, et nous y écrivons en administrateur
+/// (backup.json, journaux, rapport). Un point de jonction ou un lien symbolique permettrait de
+/// rediriger ces écritures ailleurs (ex. `C:\Windows`) : on refuse d'y travailler.
+fn check_data_dir() -> Result<(), String> {
+    let backup = paths::backup_path();
+    let tmp = backup.with_extension("json.tmp");
+    for p in [paths::data_dir(), paths::log_dir(), backup, tmp, paths::elevated_result()] {
+        match std::fs::symlink_metadata(&p) {
+            Ok(m) if is_reparse_point(&m) => return Err(format!("{} est un lien ou un point de jonction : refusé", p.display())),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn is_reparse_point(m: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
 }
 
 fn main() {
@@ -38,17 +61,21 @@ fn main() {
         }
     }
     let Some(verb) = verb else { std::process::exit(2) };
+    // Avant toute écriture, journal compris : un dossier redirigé ne reçoit rien de nous.
+    // Codes de sortie : 2 = verbe manquant, 3 = dossier de données refusé (aucun rapport écrit).
+    if check_data_dir().is_err() {
+        std::process::exit(3);
+    }
 
     let base = Config::load(&paths::config_path());
     log::init(paths::log_dir(), "elevated", base.as_ref().map(|c| c.general.log_level).unwrap_or_default());
-    let mut session = match Session::open() {
+    let mut session = match Session::open_elevated() {
         Ok(s) => s,
         Err(e) => {
             log_error!("session : {e}");
             finish(&Report::default(), false);
         }
     };
-    session.elevated = true;
 
     let report = if verb == "apply" {
         match base {

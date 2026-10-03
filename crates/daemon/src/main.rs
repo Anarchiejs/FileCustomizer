@@ -236,7 +236,7 @@ fn main() {
     }
 
     // Instance unique.
-    let mutex_name: Vec<u16> = paths::MUTEX_NAME.encode_utf16().chain([0]).collect();
+    let mutex_name: Vec<u16> = paths::mutex_name().encode_utf16().chain([0]).collect();
     let _mutex = unsafe {
         let h = match CreateMutexW(None, false, PCWSTR(mutex_name.as_ptr())) {
             Ok(h) => h,
@@ -273,7 +273,7 @@ fn main() {
         return;
     };
 
-    let stop_name: Vec<u16> = paths::STOP_EVENT_NAME.encode_utf16().chain([0]).collect();
+    let stop_name: Vec<u16> = paths::stop_event_name().encode_utf16().chain([0]).collect();
     let (stop_event, timer) = unsafe {
         (
             CreateEventW(None, true, false, PCWSTR(stop_name.as_ptr())).unwrap_or_default(),

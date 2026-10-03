@@ -9,7 +9,7 @@ use crate::error::Result;
 use crate::paths;
 use crate::registry::WinRegistry;
 use crate::shell::WinShell;
-use crate::tweak::{Ctx, Report};
+use crate::tweak::{ChangeKind, Ctx, Report};
 use std::time::Instant;
 
 pub struct Session {
@@ -39,6 +39,15 @@ impl Session {
         })
     }
 
+    /// Session du helper élevé : les entrées de `backup.json` hors liste blanche sont écartées
+    /// avant toute opération (le fichier est modifiable sans élévation).
+    pub fn open_elevated() -> Result<Self> {
+        let mut s = Self::open()?;
+        s.elevated = true;
+        s.backup.quarantine(engine::elevated_entry_allowed);
+        Ok(s)
+    }
+
     fn with_ctx<R>(&mut self, cfg: &Config, dry_run: bool, defer_shell: bool, f: impl FnOnce(&mut Ctx) -> R) -> (R, Report) {
         self.guard.configure(cfg.general.conflict_max_rewrites, cfg.general.conflict_window_secs);
         let mut ctx = Ctx {
@@ -54,6 +63,14 @@ impl Session {
             elevated: self.elevated,
             report: Report::default(),
         };
+        for e in ctx.backup.quarantined().to_vec() {
+            ctx.report.push(
+                &e.tweak,
+                ChangeKind::Error,
+                format!("{} \\ {}", e.key.display(), e.name),
+                "entrée de backup.json hors liste autorisée : ignorée par le helper élevé",
+            );
+        }
         let r = f(&mut ctx);
         (r, ctx.report)
     }

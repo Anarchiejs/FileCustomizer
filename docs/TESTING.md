@@ -3,11 +3,17 @@
 ## Automatiques
 
 ```
-cargo test -p eb-core        # 42 tests, backend de registre et Shell simulés, aucun effet sur le système
+cargo test --workspace       # 57 tests, aucun effet sur le registre (voir ci-dessous)
 cargo clippy --workspace
 ```
 
 Couvert : défauts = rien à faire ; config invalide rejetée ; idempotence (2e passe = 0 écriture) ; `--dry-run` n'écrit rien ; restauration exacte (valeur, absence de valeur, clés créées) ; « première sauvegarde gagne » ; guerre d'écriture arrêtée ; épingles : désépinglage, liste blanche, ré-épinglage, jamais de bascule sur un élément non épinglé, dry-run, `revert`.
+
+Tests d'intégration sur les vrais binaires, chacun dans un `EXPLORERBENDER_HOME` temporaire :
+
+- **CLI** (`crates/cli/tests`) : `init` ne réécrit jamais une config existante et produit une config sans effet ; `validate` rejette un TOML cassé ; profil inconnu refusé ; `apply`/`restore --dry-run` ne créent ni backup ni marqueur.
+- **Démon** (`crates/daemon/tests`) : sortie immédiate s'il est suspendu ; `status.json` écrit au démarrage ; deuxième instance bloquée par le mutex ; rechargement de `config.toml` sur événement ; config invalide signalée sans arrêt ; arrêt propre par l'événement nommé. Le mutex et l'événement dépendent du dossier de données : un vrai démon sur la session n'est ni gêné ni arrêté.
+- **Helper élevé** (`crates/elevated-helper/tests`, sans élévation, en `--dry-run`) : une entrée forgée dans `backup.json` (ex. `HKLM\...\Run`) est refusée et signalée, l'entrée légitime est restaurée, rien n'est perdu du fichier ; un dossier de données qui est une jonction est refusé avant toute écriture (code 3).
 
 ## Intégration manuelle (checklist)
 
