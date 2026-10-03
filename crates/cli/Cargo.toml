@@ -1,16 +1,16 @@
 [package]
-name = "eb-cli"
+name = "fc-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "explorerbender"
+name = "filecustomizer"
 path = "src/main.rs"
 
 [dependencies]
-eb-core = { path = "../core" }
+fc-core = { path = "../core" }
 serde_json.workspace = true
 
 [dependencies.windows]

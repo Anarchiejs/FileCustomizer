@@ -695,17 +695,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
-name = "eb-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "toml 1.1.6+spec-1.1.0",
- "toml_edit 0.25.15+spec-1.1.0",
- "windows",
-]
-
-[[package]]
 name = "embed-resource"
 version = "3.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -743,22 +732,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "explorerbender-ui"
-version = "0.1.0"
-dependencies = [
- "eb-core",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "windows",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+
+[[package]]
+name = "fc-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toml 1.1.6+spec-1.1.0",
+ "toml_edit 0.25.15+spec-1.1.0",
+ "windows",
+]
 
 [[package]]
 name = "fdeflate"
@@ -777,6 +765,18 @@ checksum = "38e2275cc4e4fc009b0669731a1e5ab7ebf11f469eaede2bab9309a5b4d6057f"
 dependencies = [
  "memoffset",
  "rustc_version",
+]
+
+[[package]]
+name = "filecustomizer-ui"
+version = "0.1.0"
+dependencies = [
+ "fc-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "windows",
 ]
 
 [[package]]

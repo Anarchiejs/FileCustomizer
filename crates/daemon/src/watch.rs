@@ -1,6 +1,6 @@
 //! Sources d'événements du démon. Tout est attente noyau sur des HANDLE : aucun polling.
 
-use eb_core::registry::{Hive, RegKey, View};
+use fc_core::registry::{Hive, RegKey, View};
 use std::path::Path;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::*;

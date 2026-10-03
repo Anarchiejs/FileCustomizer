@@ -1,5 +1,5 @@
 'use strict';
-// Interface ExplorerBender.
+// Interface FileCustomizer.
 // Sécurité : tout texte venant du système (noms d'extensions, de nœuds, verbes, sorties du CLI) est
 // inséré via textContent. Seules les icônes (constantes ci-dessous) passent par innerHTML.
 
@@ -205,7 +205,7 @@ function pageOverview() {
   const out = [];
   out.push(el('div', { class: 'hero' },
     el('div', { class: 'hero-top' }, el('span', { class: `dot ${running ? 'ok' : 'warn'}` }), running ? 'Le démon veille en arrière-plan' : S.suspended ? 'Démon suspendu par « Tout restaurer »' : 'Démon arrêté'),
-    el('div', { class: 'hero-title', text: running ? 'Votre Explorateur est sous contrôle' : 'ExplorerBender est en pause' }),
+    el('div', { class: 'hero-title', text: running ? 'Votre Explorateur est sous contrôle' : 'FileCustomizer est en pause' }),
     el('p', { class: 'hero-text', text: 'Déclarez ce que vous voulez voir dans l’Explorateur ; chaque enregistrement est appliqué tout de suite et maintenu si Windows tente de le défaire.' }),
     el('div', { class: 'hero-actions' },
       btn(busy ? 'En cours…' : 'Appliquer maintenant', busy ? null : 'play', () => act('apply_now', { profile: null, auto: false, elevate: false, dryRun: false }), 'solid', busy),
@@ -508,7 +508,7 @@ function render() {
   }
   const running = S.daemon_running && !S.suspended;
   const side = el('aside', { class: 'side' },
-    el('div', { class: 'brand' }, el('div', { class: 'brand-mark' }, icon('logo')), el('div', {}, el('div', { class: 'brand-name', text: 'ExplorerBender' }), el('div', { class: 'brand-sub', text: 'Structure de l’Explorateur' }))),
+    el('div', { class: 'brand' }, el('div', { class: 'brand-mark' }, icon('logo')), el('div', {}, el('div', { class: 'brand-name', text: 'FileCustomizer' }), el('div', { class: 'brand-sub', text: 'Structure de l’Explorateur' }))),
     nav,
     el('div', { class: 'side-foot' }, el('div', { class: 'daemon-chip' }, el('span', { class: `dot ${running ? 'ok' : 'warn'}` }),
       el('div', {}, el('div', { style: 'font-weight:600;color:var(--ink)', text: running ? 'Démon actif' : S.suspended ? 'Démon suspendu' : 'Démon arrêté' }), el('div', { text: `Windows build ${S.windows_build}` })))));
@@ -518,7 +518,7 @@ function render() {
   target.addEventListener('change', () => { editing = target.value; render(); });
   const current = PAGES.find(([id]) => id === page) || PAGES[0];
   const topbar = el('header', { class: 'topbar' },
-    el('div', { class: 'crumb', text: `ExplorerBender  ›  ${current[1]}` }),
+    el('div', { class: 'crumb', text: `FileCustomizer  ›  ${current[1]}` }),
     el('div', { class: 'spacer' }),
     page !== 'overview' && page !== 'profiles' && page !== 'raw' ? el('label', { class: 'target-pill' }, 'Édition de', target) : null);
 
@@ -542,5 +542,5 @@ if (window.__TAURI__) {
   app.replaceChildren(el('div', { class: 'loading' }, el('div', { class: 'spin' }), 'Lecture de la configuration…'));
   load().catch((e) => { app.replaceChildren(el('div', { class: 'loading', text: `Erreur de chargement : ${e}` })); });
 } else {
-  app.replaceChildren(el('div', { class: 'loading', text: 'Cette page doit être ouverte dans l’application ExplorerBender.' }));
+  app.replaceChildren(el('div', { class: 'loading', text: 'Cette page doit être ouverte dans l’application FileCustomizer.' }));
 }

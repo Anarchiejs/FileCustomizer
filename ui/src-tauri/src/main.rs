@@ -1,21 +1,21 @@
-//! Interface de configuration d'ExplorerBender.
+//! Interface de configuration d'FileCustomizer.
 //!
 //! Processus SÉPARÉ lancé à la demande, jamais résident : il lit/écrit `config.toml`, le démon
 //! détecte le changement et applique. Les actions « Appliquer » / « Tout restaurer » délèguent au
-//! CLI (`explorerbender.exe`, installé à côté) pour qu'il n'y ait qu'un seul chemin de code qui
+//! CLI (`filecustomizer.exe`, installé à côté) pour qu'il n'y ait qu'un seul chemin de code qui
 //! modifie le système. Aucun accès fichier/shell générique n'est exposé à la page web.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use eb_core::compat;
-use eb_core::config::Config;
-use eb_core::drives::{self, SysEnv};
-use eb_core::paths;
-use eb_core::profile;
-use eb_core::registry::WinRegistry;
-use eb_core::shell::WinShell;
-use eb_core::status::Status;
-use eb_core::tweaks::{context_menu, navpane, thispc};
+use fc_core::compat;
+use fc_core::config::Config;
+use fc_core::drives::{self, SysEnv};
+use fc_core::paths;
+use fc_core::profile;
+use fc_core::registry::WinRegistry;
+use fc_core::shell::WinShell;
+use fc_core::status::Status;
+use fc_core::tweaks::{context_menu, navpane, thispc};
 use serde_json::{json, Value};
 use std::os::windows::process::CommandExt;
 use std::process::Command;
@@ -120,9 +120,9 @@ fn save_raw(text: String) -> Result<(), String> {
 }
 
 fn run_cli(args: &[String]) -> Result<Value, String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("explorerbender.exe");
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("filecustomizer.exe");
     if !exe.exists() {
-        return Err(format!("explorerbender.exe introuvable à côté de l'interface ({})", exe.display()));
+        return Err(format!("filecustomizer.exe introuvable à côté de l'interface ({})", exe.display()));
     }
     let out = Command::new(exe).args(args).creation_flags(CREATE_NO_WINDOW).output().map_err(|e| e.to_string())?;
     let mut text = String::from_utf8_lossy(&out.stdout).to_string();

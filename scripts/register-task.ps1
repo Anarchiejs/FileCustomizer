@@ -1,19 +1,19 @@
 ﻿<#
 .SYNOPSIS
-  Crée (ou remplace) la tâche planifiée « ExplorerBender » : ouverture de session, délai 0,
+  Crée (ou remplace) la tâche planifiée « FileCustomizer » : ouverture de session, délai 0,
   priorité 3 (au-dessus de la normale, pas temps réel), privilèges NORMAUX, une seule instance,
   relance automatique en cas de plantage. Partagé par install.ps1 et l'installateur Inno Setup.
 #>
 param([Parameter(Mandatory)][string]$InstallDir)
 $ErrorActionPreference = 'Stop'
-$TaskName = 'ExplorerBender'
-$daemon = Join-Path $InstallDir 'explorerbender-daemon.exe'
+$TaskName = 'FileCustomizer'
+$daemon = Join-Path $InstallDir 'filecustomizer-daemon.exe'
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $xml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>ExplorerBender : applique et maintient la structure de l'Explorateur de fichiers.</Description>
+    <Description>FileCustomizer : applique et maintient la structure de l'Explorateur de fichiers.</Description>
   </RegistrationInfo>
   <Triggers>
     <LogonTrigger>

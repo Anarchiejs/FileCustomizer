@@ -16,6 +16,6 @@ La table vit dans `crates/core/src/compat.rs`. Un tweak n'est appliqué automati
 26100 est déclarée par analogie (même base de code que 26200) : à confirmer sur une machine 24H2 avant de s'y fier.
 
 ## Protocole pour valider une nouvelle build
-1. `explorerbender status` : noter la build.
+1. `filecustomizer status` : noter la build.
 2. Dérouler la checklist d'intégration de `docs/TESTING.md` pour chaque tweak.
 3. Ajouter la plage dans `COMPAT` **et** une ligne dans le tableau ci-dessus avec la preuve.

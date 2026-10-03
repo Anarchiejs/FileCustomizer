@@ -1,4 +1,4 @@
-//! Modèle de configuration (`%APPDATA%\ExplorerBender\config.toml`).
+//! Modèle de configuration (`%APPDATA%\FileCustomizer\config.toml`).
 //!
 //! Règle d'or : **toutes les valeurs par défaut signifient « ne rien toucher »**.
 //! Un fichier vide, ou absent, ne modifie donc jamais le système.
@@ -17,7 +17,7 @@ pub trait ProfileEnv {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {
-    /// Ne pas toucher : si ExplorerBender avait posé une valeur, elle est restaurée.
+    /// Ne pas toucher : si FileCustomizer avait posé une valeur, elle est restaurée.
     #[default]
     Default,
     Show,
@@ -69,7 +69,7 @@ impl Default for General {
 pub struct NavigationPane {
     pub home: Visibility,
     pub gallery: Visibility,
-    /// Tout autre nœud du volet : clé = nom lisible (voir `explorerbender nodes`) ou CLSID.
+    /// Tout autre nœud du volet : clé = nom lisible (voir `filecustomizer nodes`) ou CLSID.
     pub nodes: BTreeMap<String, Visibility>,
 }
 
@@ -142,7 +142,7 @@ pub struct ExplorerView {
 pub struct ContextMenu {
     /// Restaure le menu contextuel classique de Windows 10.
     pub classic_menu: bool,
-    /// Extensions Shell à bloquer (nom ou CLSID ; liste : `explorerbender shell-extensions`).
+    /// Extensions Shell à bloquer (nom ou CLSID ; liste : `filecustomizer shell-extensions`).
     /// Méthode non destructive : `Shell Extensions\Blocked`.
     pub blocked_extensions: Vec<String>,
     /// Verbes statiques à désactiver (`LegacyDisable`), ex. `Directory\shell\cmd`.
@@ -296,8 +296,8 @@ impl Config {
     }
 }
 
-/// Contenu écrit par `explorerbender init` : documente le schéma, ne modifie rien.
-pub const DEFAULT_CONFIG_TOML: &str = r##"# ExplorerBender — configuration
+/// Contenu écrit par `filecustomizer init` : documente le schéma, ne modifie rien.
+pub const DEFAULT_CONFIG_TOML: &str = r##"# FileCustomizer — configuration
 # Toutes les valeurs par défaut = « ne rien toucher ». Décommentez ce que vous voulez.
 # Le démon relit ce fichier dès qu'il change. Erreur de syntaxe => ancienne config conservée.
 version = 1
@@ -314,7 +314,7 @@ version = 1
 # home = "hide"                 # Accueil
 # gallery = "hide"              # Galerie
 
-# Autres nœuds du volet (liste : `explorerbender nodes`), par nom lisible ou par CLSID :
+# Autres nœuds du volet (liste : `filecustomizer nodes`), par nom lisible ou par CLSID :
 # [navigation_pane.nodes]
 # "Proton Drive" = "hide"
 # "Bibliothèques" = "hide"
@@ -348,10 +348,10 @@ version = 1
 
 [context_menu]
 # classic_menu = true                      # menu contextuel classique (Windows 10)
-# blocked_extensions = ["{CLSID}", "Nom"]  # liste : `explorerbender shell-extensions`
+# blocked_extensions = ["{CLSID}", "Nom"]  # liste : `filecustomizer shell-extensions`
 # disabled_verbs = ['Directory\shell\cmd']
 
-# Profils : chaque section présente REMPLACE la section de base. `explorerbender apply Minimal`.
+# Profils : chaque section présente REMPLACE la section de base. `filecustomizer apply Minimal`.
 # [profiles.Minimal.navigation_pane]
 # home = "hide"
 # gallery = "hide"

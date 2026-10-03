@@ -1,15 +1,15 @@
-//! `explorerbender` — CLI : init, apply, status, restore, stop, nodes, drives, shell-extensions,
+//! `filecustomizer` — CLI : init, apply, status, restore, stop, nodes, drives, shell-extensions,
 //! verbs, profiles, validate.
 
-use eb_core::config::{Config, DEFAULT_CONFIG_TOML};
-use eb_core::drives::{self, SysEnv};
-use eb_core::engine::TweakDetection;
-use eb_core::profile;
-use eb_core::session::Session;
-use eb_core::status::Status;
-use eb_core::tweak::{Change, ChangeKind, ItemStatus, Report};
-use eb_core::tweaks::{context_menu, navpane};
-use eb_core::{log, paths};
+use fc_core::config::{Config, DEFAULT_CONFIG_TOML};
+use fc_core::drives::{self, SysEnv};
+use fc_core::engine::TweakDetection;
+use fc_core::profile;
+use fc_core::session::Session;
+use fc_core::status::Status;
+use fc_core::tweak::{Change, ChangeKind, ItemStatus, Report};
+use fc_core::tweaks::{context_menu, navpane};
+use fc_core::{log, paths};
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use windows::core::PCWSTR;
@@ -22,10 +22,10 @@ use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLE
 use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
 
 const HELP: &str = "\
-ExplorerBender — personnalisation de la structure de l'Explorateur Windows
+FileCustomizer — personnalisation de la structure de l'Explorateur Windows
 
 USAGE
-  explorerbender <commande> [options]
+  filecustomizer <commande> [options]
 
 COMMANDES
   init                      Crée config.toml documenté (sans rien activer) s'il n'existe pas
@@ -101,7 +101,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    log::init(paths::log_dir(), "cli", eb_core::config::LogLevel::Info);
+    log::init(paths::log_dir(), "cli", fc_core::config::LogLevel::Info);
     let code = match o.cmd.as_str() {
         "" | "help" => {
             print!("{HELP}");
@@ -213,10 +213,10 @@ fn restart_explorer() {
     }
 }
 
-/// Lance `explorerbender-elevated.exe <verbe>` avec l'invite UAC, attend sa fin et affiche son rapport.
+/// Lance `filecustomizer-elevated.exe <verbe>` avec l'invite UAC, attend sa fin et affiche son rapport.
 /// Retourne `None` si l'utilisateur refuse l'invite ou si le helper est introuvable.
 fn run_elevated(verb: &str, dry_run: bool) -> Option<bool> {
-    let exe = std::env::current_exe().ok()?.with_file_name("explorerbender-elevated.exe");
+    let exe = std::env::current_exe().ok()?.with_file_name("filecustomizer-elevated.exe");
     if !exe.exists() {
         eprintln!("helper introuvable : {}", exe.display());
         return None;
@@ -350,7 +350,7 @@ fn cmd_apply(o: &Opts) -> u8 {
         println!("\n(--dry-run : rien n'a été écrit)");
     } else {
         log::log(
-            eb_core::config::LogLevel::Info,
+            fc_core::config::LogLevel::Info,
             &format!(
                 "apply CLI : {} changement(s)",
                 r.changes.iter().filter(|c| c.kind == ChangeKind::Applied).count()
@@ -373,7 +373,7 @@ fn cmd_profiles(o: &Opts) -> u8 {
     };
     let r = profile::resolve(base, &SysEnv);
     if r.base.profiles.is_empty() {
-        println!("Aucun profil défini. Voir la section [profiles.<nom>.*] de config.toml (`explorerbender init`).");
+        println!("Aucun profil défini. Voir la section [profiles.<nom>.*] de config.toml (`filecustomizer init`).");
         return 0;
     }
     println!("Profils :");
@@ -443,7 +443,7 @@ fn cmd_restore(o: &Opts) -> u8 {
         let _ = std::fs::create_dir_all(paths::data_dir());
         let _ = std::fs::write(
             paths::disabled_marker(),
-            "ExplorerBender suspendu par `restore`. `explorerbender apply` le réactive.\n",
+            "FileCustomizer suspendu par `restore`. `filecustomizer apply` le réactive.\n",
         );
         if signal_daemon_stop() {
             std::thread::sleep(std::time::Duration::from_millis(500));
@@ -454,7 +454,7 @@ fn cmd_restore(o: &Opts) -> u8 {
     let mut code = exit_for(&r);
     // Les réglages HKLM ne se restaurent que par le helper élevé. L'utilisateur vient de demander
     // explicitement la restauration complète : l'invite UAC est la suite logique.
-    let hklm_left = s.backup.data.entries.iter().any(|e| eb_core::engine::needs_elevation_for(&e.tweak));
+    let hklm_left = s.backup.data.entries.iter().any(|e| fc_core::engine::needs_elevation_for(&e.tweak));
     if hklm_left && !o.dry_run && run_elevated("restore", false) != Some(true) {
         eprintln!("Les réglages HKLM n'ont pas été restaurés ; ils restent dans backup.json (relancez `restore`).");
         code = 1;
@@ -465,7 +465,7 @@ fn cmd_restore(o: &Opts) -> u8 {
         if code != 0 {
             eprintln!("\nCertaines valeurs n'ont pas pu être restaurées ; elles restent dans backup.json pour un nouvel essai.");
         } else {
-            println!("\nÉtat d'origine restauré. Le démon est suspendu (`explorerbender apply` pour le réactiver).");
+            println!("\nÉtat d'origine restauré. Le démon est suspendu (`filecustomizer apply` pour le réactiver).");
         }
         if o.restart_explorer {
             restart_explorer();
@@ -648,9 +648,9 @@ fn cmd_validate(o: &Opts) -> u8 {
 
 /// Diagnostic / tests d'intégration : bascule l'épinglage d'un dossier via la commande Windows.
 fn cmd_debug_pin(o: &Opts) -> u8 {
-    use eb_core::shell::ShellBackend;
+    use fc_core::shell::ShellBackend;
     let Some(p) = o.positional.first() else {
-        eprintln!("usage : explorerbender debug-pin <dossier>");
+        eprintln!("usage : filecustomizer debug-pin <dossier>");
         return 2;
     };
     let s = match open_session() {

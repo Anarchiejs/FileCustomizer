@@ -4,6 +4,9 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Non publié]
 
+### Modifié
+- Le projet s'appelle désormais **File Customizer** (binaires `filecustomizer*`, données dans `%APPDATA%FileCustomizer`, variable `FILECUSTOMIZER_HOME`).
+
 ### Ajouté
 - Workflow `release.yml` : un tag `vX.Y.Z` construit l'installateur et le joint à une release GitHub, avec sa somme SHA-256.
 

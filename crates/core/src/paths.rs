@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-/// `%APPDATA%\ExplorerBender` (surchargeable par `EXPLORERBENDER_HOME`, utile aux tests manuels).
+/// `%APPDATA%\FileCustomizer` (surchargeable par `FILECUSTOMIZER_HOME`, utile aux tests manuels).
 pub fn data_dir() -> PathBuf {
-    if let Some(p) = std::env::var_os("EXPLORERBENDER_HOME") {
+    if let Some(p) = std::env::var_os("FILECUSTOMIZER_HOME") {
         return PathBuf::from(p);
     }
     let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-    base.join("ExplorerBender")
+    base.join("FileCustomizer")
 }
 
 pub fn config_path() -> PathBuf {
@@ -35,17 +35,17 @@ pub const QUICK_ACCESS_FILE: &str = "f01b4d95cf55d32a.automaticDestinations-ms";
 
 /// Mutex d'instance unique du démon.
 pub fn mutex_name() -> String {
-    format!("Local\\ExplorerBender.Daemon{}", instance_suffix())
+    format!("Local\\FileCustomizer.Daemon{}", instance_suffix())
 }
 /// Événement nommé : le CLI le signale pour demander l'arrêt propre du démon.
 pub fn stop_event_name() -> String {
-    format!("Local\\ExplorerBender.Stop{}", instance_suffix())
+    format!("Local\\FileCustomizer.Stop{}", instance_suffix())
 }
 
-/// Un dossier de données isolé (`EXPLORERBENDER_HOME`) est une instance à part : son démon ne
+/// Un dossier de données isolé (`FILECUSTOMIZER_HOME`) est une instance à part : son démon ne
 /// doit ni être bloqué par le vrai démon de la session, ni pouvoir l'arrêter (tests).
 fn instance_suffix() -> String {
-    match std::env::var_os("EXPLORERBENDER_HOME") {
+    match std::env::var_os("FILECUSTOMIZER_HOME") {
         None => String::new(),
         Some(h) => {
             // FNV-1a : stable d'un processus à l'autre (contrairement à `DefaultHasher`).
@@ -59,7 +59,7 @@ fn instance_suffix() -> String {
     }
 }
 
-/// Profil choisi à la main (`explorerbender apply <profil>`). Absent = les règles décident.
+/// Profil choisi à la main (`filecustomizer apply <profil>`). Absent = les règles décident.
 pub fn profile_override() -> PathBuf {
     data_dir().join("profile")
 }

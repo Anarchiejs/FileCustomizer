@@ -13,7 +13,7 @@ La CI GitHub Actions (`.github/workflows/ci.yml`, runner Windows) lance les mêm
 
 Couvert : défauts = rien à faire ; config invalide rejetée ; idempotence (2e passe = 0 écriture) ; `--dry-run` n'écrit rien ; restauration exacte (valeur, absence de valeur, clés créées) ; « première sauvegarde gagne » ; guerre d'écriture arrêtée ; épingles : désépinglage, liste blanche, ré-épinglage, jamais de bascule sur un élément non épinglé, dry-run, `revert`.
 
-Tests d'intégration sur les vrais binaires, chacun dans un `EXPLORERBENDER_HOME` temporaire :
+Tests d'intégration sur les vrais binaires, chacun dans un `FILECUSTOMIZER_HOME` temporaire :
 
 - **CLI** (`crates/cli/tests`) : `init` ne réécrit jamais une config existante et produit une config sans effet ; `validate` rejette un TOML cassé ; profil inconnu refusé ; `apply`/`restore --dry-run` ne créent ni backup ni marqueur.
 - **Démon** (`crates/daemon/tests`) : sortie immédiate s'il est suspendu ; `status.json` écrit au démarrage ; deuxième instance bloquée par le mutex ; rechargement de `config.toml` sur événement ; config invalide signalée sans arrêt ; arrêt propre par l'événement nommé. Le mutex et l'événement dépendent du dossier de données : un vrai démon sur la session n'est ni gêné ni arrêté.
@@ -28,7 +28,7 @@ Tests d'intégration sur les vrais binaires, chacun dans un `EXPLORERBENDER_HOME
 | Rapporté le | 2026-10-03 |
 | Testeur | l'auteur du projet, sur sa machine personnelle (pas une VM) |
 | Système | Windows 11 25H2, build 26200.9457 |
-| Version | 0.1.0, installée avec `ExplorerBender-Setup-0.1.0.exe` |
+| Version | 0.1.0, installée avec `FileCustomizer-Setup-0.1.0.exe` |
 | Résultat | **globalement fonctionnel** |
 
 Ce test valide la chaîne complète en usage réel : installation, démarrage du démon par la tâche planifiée, interface et application de la configuration dans l'Explorateur.
@@ -40,23 +40,23 @@ Ce qu'il ne couvre pas : les points de la checklist ci-dessous n'ont pas tous é
 | Point | Méthode | Résultat |
 |---|---|---|
 | Valeurs de `LaunchTo` | démon arrêté ; pour chaque valeur, `explorer.exe` sans argument puis lecture de la nouvelle fenêtre via `Shell.Application` | 1 → Ce PC, 2 → Accueil, 3 → Téléchargements, 4 → dossier du fournisseur cloud principal (Proton Drive ici, OneDrive absent). Valeur d'origine restaurée, démon relancé. |
-| Vrai `WM_DEVICECHANGE` | démon isolé (`EXPLORERBENDER_HOME`), règle `drive_present = "Q"`, `subst Q: …` puis `subst Q: /d` | `profil actif : Test` ~3 s après l'apparition, `aucun (base)` après le retrait. |
+| Vrai `WM_DEVICECHANGE` | démon isolé (`FILECUSTOMIZER_HOME`), règle `drive_present = "Q"`, `subst Q: …` puis `subst Q: /d` | `profil actif : Test` ~3 s après l'apparition, `aucun (base)` après le retrait. |
 
-Piège : un shell lancé depuis une application empaquetée (MSIX, par ex. l'application de bureau Claude) voit un **HKCU virtualisé** — ses lectures et écritures ne sont pas celles du démon. Pour ces vérifications, lancer les commandes hors du conteneur (par ex. `Invoke-CimMethod Win32_Process Create`) ; un `explorerbender stop` doit toujours garder le même `EXPLORERBENDER_HOME` que le démon visé.
+Piège : un shell lancé depuis une application empaquetée (MSIX, par ex. l'application de bureau Claude) voit un **HKCU virtualisé** — ses lectures et écritures ne sont pas celles du démon. Pour ces vérifications, lancer les commandes hors du conteneur (par ex. `Invoke-CimMethod Win32_Process Create`) ; un `filecustomizer stop` doit toujours garder le même `FILECUSTOMIZER_HOME` que le démon visé.
 
 ## Intégration manuelle (checklist)
 
-À faire avec `EXPLORERBENDER_HOME=<dossier de test>` pour isoler config/backup/journaux. Le registre, lui, est bien réel : terminer par `explorerbender restore`.
+À faire avec `FILECUSTOMIZER_HOME=<dossier de test>` pour isoler config/backup/journaux. Le registre, lui, est bien réel : terminer par `filecustomizer restore`.
 
 ### navpane (Accueil, Galerie, nœuds)
-1. `config.toml` : `home="hide"`, `gallery="hide"`. `explorerbender apply`. **Ouvrir une NOUVELLE fenêtre Explorateur** : Accueil et Galerie ont disparu du volet. Une fenêtre déjà ouverte se rafraîchit-elle ? (noter le résultat ; sinon `--restart-explorer`).
-2. `explorerbender nodes` : « EFFECTIF » = masqué, « OVERRIDE HKCU » = 0.
+1. `config.toml` : `home="hide"`, `gallery="hide"`. `filecustomizer apply`. **Ouvrir une NOUVELLE fenêtre Explorateur** : Accueil et Galerie ont disparu du volet. Une fenêtre déjà ouverte se rafraîchit-elle ? (noter le résultat ; sinon `--restart-explorer`).
+2. `filecustomizer nodes` : « EFFECTIF » = masqué, « OVERRIDE HKCU » = 0.
 3. Dérive : `Set-ItemProperty HKCU:\Software\Classes\CLSID\{f874310e-…} System.IsPinnedToNameSpaceTree 1 -Type DWord` avec le démon lancé → remis à 0 en ~1,5 s.
 4. Conflit : réécrire la valeur toutes les 2 s, 10 fois → `status` affiche `CONFLIT`, le démon cesse de se battre.
 5. `restore` : la clé HKCU de Accueil/Galerie n'existe plus (`reg query`), Proton Drive retrouve sa valeur 1 d'origine.
 
 ### quick-access
-1. Créer un dossier de test, `explorerbender debug-pin <dossier>` (épinglé).
+1. Créer un dossier de test, `filecustomizer debug-pin <dossier>` (épinglé).
 2. `mode="whitelist"` avec la liste de **vos** dossiers épinglés actuels → `apply --dry-run` ne propose que le dossier de test ; `apply` le désépingle, les autres restent.
 3. Démon lancé : `debug-pin` du dossier de test → désépinglé automatiquement en ~1,5 s, **une seule passe** dans `daemon.log` (pas de boucle).
 4. `restore` : le dossier de test est ré-épinglé (puis `debug-pin` pour le retirer).
@@ -64,8 +64,8 @@ Piège : un shell lancé depuis une application empaquetée (MSIX, par ex. l'app
 
 ### démon
 1. Instance unique : lancer deux fois, un seul processus.
-2. `explorerbender stop` / `restore` : arrêt propre, marqueur `disabled` respecté au démarrage suivant.
-3. `TaskbarCreated` : poster le message à la fenêtre cachée (classe `ExplorerBenderHidden`) → réapplication ~1,5 s après.
+2. `filecustomizer stop` / `restore` : arrêt propre, marqueur `disabled` respecté au démarrage suivant.
+3. `TaskbarCreated` : poster le message à la fenêtre cachée (classe `FileCustomizerHidden`) → réapplication ~1,5 s après.
 4. Au repos : CPU 0 ms sur 30 s, aucun thread actif.
 
 ### this_pc (élévation)
@@ -83,11 +83,11 @@ Piège : un shell lancé depuis une application empaquetée (MSIX, par ex. l'app
 ### profils
 1. Deux profils + une règle `drive_absent = "Z"` : `profiles` indique le profil actif ; `apply` l'applique.
 2. `apply Autre` : bascule, restaure ce que l'ancien profil avait posé ; `apply --auto` revient aux règles.
-3. Démon lancé : écrire `Autre` dans `%APPDATA%\ExplorerBender\profile` → bascule en ~2 s ; supprimer le fichier → retour à la règle.
+3. Démon lancé : écrire `Autre` dans `%APPDATA%\FileCustomizer\profile` → bascule en ~2 s ; supprimer le fichier → retour à la règle.
 4. Brancher/débrancher un lecteur utilisé par une règle → le profil change sans action.
 
 ### interface
-1. Lancer `explorerbender-ui.exe` : pages, enregistrement (« Enregistrer » → config.toml mis à jour en place, commentaires conservés, ancienne version dans `config.toml.bak`), « Aperçu », « Appliquer », « Tout restaurer ».
+1. Lancer `filecustomizer-ui.exe` : pages, enregistrement (« Enregistrer » → config.toml mis à jour en place, commentaires conservés, ancienne version dans `config.toml.bak`), « Aperçu », « Appliquer », « Tout restaurer ».
 2. Banc de test sans Tauri : `.claude/launch.json` (« ui-mock ») sert `ui/` ; ouvrir `/test/mock.html` (manipulation libre) ou `/test/scenarios.html` (scénarios automatiques).
 
 ## Mesures (build release, Windows 26200.9457)
@@ -100,7 +100,7 @@ Piège : un shell lancé depuis une application empaquetée (MSIX, par ex. l'app
 | RAM, mémoire privée au repos | 1,88 Mo | 4,31 Mo |
 | CPU sur 30 s au repos | **0,0 ms** | **0,0 ms** |
 | Threads / handles | 2 / 155 | 10 / 339 |
-| Taille `explorerbender-daemon.exe` | 446 Ko | |
+| Taille `filecustomizer-daemon.exe` | 446 Ko | |
 
 La passe différée mesurée à 740–878 ms contenait la notification Shell (`SHChangeNotify` + diffusion `WM_SETTINGCHANGE`), qui n'a lieu que lorsqu'une valeur vient réellement d'être écrite — jamais aux logons suivants une fois l'état conforme.
 

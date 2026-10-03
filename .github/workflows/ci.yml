@@ -37,7 +37,7 @@ jobs:
       - name: Clippy (interface Tauri)
         run: cargo clippy --all-targets --manifest-path ui/src-tauri/Cargo.toml -- -D warnings
 
-      # Aucun effet sur le registre : chaque test d'intégration tourne dans un EXPLORERBENDER_HOME temporaire.
+      # Aucun effet sur le registre : chaque test d'intégration tourne dans un FILECUSTOMIZER_HOME temporaire.
       - name: Tests
         run: cargo test --workspace
 

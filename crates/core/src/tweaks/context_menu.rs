@@ -150,7 +150,7 @@ fn desired(ctx: &Ctx) -> (Vec<RegSetting>, Vec<String>) {
                     value: RegValue::Sz(String::new()),
                     label: format!("Extension bloquée : {n}"),
                 }),
-                None => notes.push(format!("extension « {n} » introuvable (voir `explorerbender shell-extensions`)")),
+                None => notes.push(format!("extension « {n} » introuvable (voir `filecustomizer shell-extensions`)")),
             }
         }
     }

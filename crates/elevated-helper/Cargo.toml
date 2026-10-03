@@ -1,16 +1,16 @@
 [package]
-name = "eb-elevated-helper"
+name = "fc-elevated-helper"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "explorerbender-elevated"
+name = "filecustomizer-elevated"
 path = "src/main.rs"
 
 [dependencies]
-eb-core = { path = "../core" }
+fc-core = { path = "../core" }
 serde_json.workspace = true
 
 [lints]

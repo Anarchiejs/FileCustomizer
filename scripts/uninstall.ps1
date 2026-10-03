@@ -1,11 +1,11 @@
 ﻿<#
 .SYNOPSIS
-  Désinstalle ExplorerBender, en proposant de restaurer l'état d'origine de l'Explorateur.
+  Désinstalle FileCustomizer, en proposant de restaurer l'état d'origine de l'Explorateur.
 .PARAMETER KeepSettings
   Ne PAS restaurer l'état d'origine : les modifications déjà faites restent en place
   (le démon, lui, n'existe plus pour les maintenir).
 .PARAMETER RemoveData
-  Supprime aussi %APPDATA%\ExplorerBender (config, backup, journaux). Sans -KeepSettings, la
+  Supprime aussi %APPDATA%\FileCustomizer (config, backup, journaux). Sans -KeepSettings, la
   restauration a lieu AVANT la suppression, donc le backup n'est jamais perdu avant d'avoir servi.
 .PARAMETER Yes
   Ne pose aucune question (répond « restaurer »).
@@ -13,10 +13,10 @@
 [CmdletBinding()]
 param([switch]$KeepSettings, [switch]$RemoveData, [switch]$Yes)
 $ErrorActionPreference = 'Stop'
-$TaskName = 'ExplorerBender'
-$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\ExplorerBender'
-$DataDir = Join-Path $env:APPDATA 'ExplorerBender'
-$cli = Join-Path $InstallDir 'explorerbender.exe'
+$TaskName = 'FileCustomizer'
+$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\FileCustomizer'
+$DataDir = Join-Path $env:APPDATA 'FileCustomizer'
+$cli = Join-Path $InstallDir 'filecustomizer.exe'
 
 $restore = -not $KeepSettings
 if ($restore -and -not $Yes -and (Test-Path $cli)) {
@@ -35,7 +35,7 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
   Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
   Write-Host "Tâche planifiée supprimée."
 }
-Get-Process explorerbender-daemon -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process filecustomizer-daemon -ErrorAction SilentlyContinue | Stop-Process -Force
 
 $p = [Environment]::GetEnvironmentVariable('Path', 'User')
 if ($p -and (($p -split ';') -contains $InstallDir)) {
@@ -45,4 +45,4 @@ if ($p -and (($p -split ';') -contains $InstallDir)) {
 if (Test-Path $InstallDir) { [IO.Directory]::Delete($InstallDir, $true); Write-Host "Binaires supprimés." }
 if ($RemoveData -and (Test-Path $DataDir)) { [IO.Directory]::Delete($DataDir, $true); Write-Host "Données supprimées." }
 elseif (Test-Path $DataDir) { Write-Host "Données conservées dans $DataDir (-RemoveData pour les supprimer)." }
-Write-Host "ExplorerBender est désinstallé."
+Write-Host "FileCustomizer est désinstallé."

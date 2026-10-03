@@ -1,4 +1,4 @@
-//! ExplorerBender — cœur : modèle de config, registre/Shell abstraits, tweaks, backup/restore.
+//! FileCustomizer — cœur : modèle de config, registre/Shell abstraits, tweaks, backup/restore.
 //! Aucune injection ni hook : uniquement registre, API Shell officielles et fichiers utilisateur.
 
 pub mod backup;

@@ -35,12 +35,12 @@ jobs:
       - name: Installateur (Inno Setup)
         run: |
           choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\ExplorerBender.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\FileCustomizer.iss
 
       - name: Somme de contrôle
         run: |
           cd dist
-          Get-ChildItem ExplorerBender-Setup-*.exe | ForEach-Object {
+          Get-ChildItem FileCustomizer-Setup-*.exe | ForEach-Object {
             "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" | Out-File "$($_.Name).sha256" -Encoding ascii
           }
 
@@ -48,6 +48,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/ExplorerBender-Setup-*.exe
+            dist/FileCustomizer-Setup-*.exe
             dist/*.sha256
           generate_release_notes: true

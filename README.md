@@ -1,4 +1,4 @@
-# ExplorerBender (nom provisoire)
+# File Customizer
 
 Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'esthétique) : volet de navigation, Accès rapide, « Ce PC », options d'affichage, menu contextuel. L'utilisateur **déclare** ce qu'il veut dans un fichier de config (ou dans l'interface) ; un petit démon l'**applique et le maintient** quand Windows ou une application le défait.
 
@@ -8,7 +8,7 @@ Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'est
 
 - **Aucune injection, aucun hook, aucun patch** de `explorer.exe`/`shell32`/`ExplorerFrame` : seulement registre, API Shell officielles (COM), fichiers utilisateur et messages de fenêtre. Compatible avec Windhawk.
 - **Défaut = ne rien toucher.** Un `config.toml` vide ne modifie rien.
-- **Réversible.** Chaque valeur d'origine est sauvegardée (`backup.json`) *avant* d'être modifiée ; `explorerbender restore` remet exactement l'état d'origine (y compris les clés créées par nous et les dossiers désépinglés).
+- **Réversible.** Chaque valeur d'origine est sauvegardée (`backup.json`) *avant* d'être modifiée ; `filecustomizer restore` remet exactement l'état d'origine (y compris les clés créées par nous et les dossiers désépinglés).
 - **Pas de guerre d'écriture.** Plus de N réécritures de la même valeur en M secondes par un autre outil → le démon s'arrête sur cette valeur et le signale.
 - **Jamais de redémarrage d'`explorer.exe` automatique** : uniquement sur demande explicite (`--restart-explorer`).
 - **Privilèges minimaux.** Le démon n'écrit qu'en HKCU, sans admin. Ce qui est protégé en écriture passe par un **helper élevé lancé à la demande** (invite UAC), jamais par le démon. Le helper ne fait pas confiance aux fichiers de `%APPDATA%` : il ne restaure que les valeurs d'une liste blanche et refuse un dossier de données redirigé (lien, jonction).
@@ -20,10 +20,10 @@ Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'est
 ```powershell
 cargo build --release                          # démon, CLI, helper
 cargo build --release --manifest-path ui\src-tauri\Cargo.toml   # interface
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\ExplorerBender.iss
-.\dist\ExplorerBender-Setup-0.1.0.exe          # installation par utilisateur, sans élévation
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\FileCustomizer.iss
+.\dist\FileCustomizer-Setup-0.1.0.exe          # installation par utilisateur, sans élévation
 ```
-L'installateur copie les binaires dans `%LOCALAPPDATA%\Programs\ExplorerBender`, crée `config.toml` (inactif), crée la **tâche planifiée** `ExplorerBender` (ouverture de session, délai 0, priorité 3 = au-dessus de la normale mais pas temps réel, privilèges normaux, une instance, relance auto en cas de plantage), démarre le démon et crée un raccourci vers l'interface. À la désinstallation il **propose la restauration** de l'état d'origine puis la suppression des données.
+L'installateur copie les binaires dans `%LOCALAPPDATA%\Programs\FileCustomizer`, crée `config.toml` (inactif), crée la **tâche planifiée** `FileCustomizer` (ouverture de session, délai 0, priorité 3 = au-dessus de la normale mais pas temps réel, privilèges normaux, une instance, relance auto en cas de plantage), démarre le démon et crée un raccourci vers l'interface. À la désinstallation il **propose la restauration** de l'état d'origine puis la suppression des données.
 
 ### Scripts
 `scripts\install.ps1` / `scripts\uninstall.ps1` font la même chose sans installateur (`-AddToPath`, `-KeepSettings`, `-RemoveData`, `-Yes`).
@@ -32,13 +32,13 @@ Pas de clé `Run` : elle démarre trop tard. Le démon est prêt ~30 ms après s
 
 ## Interface de configuration
 
-`explorerbender-ui.exe` (Tauri 2, WebView2) est un processus **séparé, lancé à la demande, jamais résident** : il lit/écrit `config.toml`, le démon détecte le changement. Pages : vue d'ensemble (état, conflits, aperçu/appliquer/restaurer), volet de navigation (nœuds détectés), Accès rapide, Ce PC (dossiers + lecteurs détectés avec étiquette), affichage, menu contextuel (extensions et verbes détectés), profils et règles, TOML avancé. Un sélecteur « Édition de » permet d'éditer la configuration de base ou un profil (section par section : héritée ou remplacée).
+`filecustomizer-ui.exe` (Tauri 2, WebView2) est un processus **séparé, lancé à la demande, jamais résident** : il lit/écrit `config.toml`, le démon détecte le changement. Pages : vue d'ensemble (état, conflits, aperçu/appliquer/restaurer), volet de navigation (nœuds détectés), Accès rapide, Ce PC (dossiers + lecteurs détectés avec étiquette), affichage, menu contextuel (extensions et verbes détectés), profils et règles, TOML avancé. Un sélecteur « Édition de » permet d'éditer la configuration de base ou un profil (section par section : héritée ou remplacée).
 Les boutons délèguent au CLI : un seul chemin de code modifie le système. La page web n'a accès qu'à 5 commandes dédiées (aucun accès fichier/shell générique) ; tout texte lu dans le registre est affiché via `textContent`.
 Enregistrer depuis l'interface modifie `config.toml` **en place** : commentaires et lignes inchangées sont conservés, seules les valeurs modifiées sont réécrites (l'ancienne version est gardée dans `config.toml.bak`). Les valeurs par défaut des sections touchées sont écrites explicitement.
 
 ## Configuration
 
-`%APPDATA%\ExplorerBender\config.toml` — relu dès qu'il change. Erreur de syntaxe → refusée, **l'ancienne configuration reste active** (signalé). `explorerbender init` écrit un modèle commenté complet. Les clés inconnues sont rejetées (détecte les fautes de frappe).
+`%APPDATA%\FileCustomizer\config.toml` — relu dès qu'il change. Erreur de syntaxe → refusée, **l'ancienne configuration reste active** (signalé). `filecustomizer init` écrit un modèle commenté complet. Les clés inconnues sont rejetées (détecte les fautes de frappe).
 
 ```toml
 version = 1
@@ -53,7 +53,7 @@ debounce_ms = 1500
 [navigation_pane]               # default | show | hide
 home = "hide"
 gallery = "hide"
-[navigation_pane.nodes]         # nom (cf. `explorerbender nodes`) ou CLSID
+[navigation_pane.nodes]         # nom (cf. `filecustomizer nodes`) ou CLSID
 "Proton Drive" = "hide"
 
 [quick_access]
@@ -81,8 +81,8 @@ hide_drives_with_no_media = true
 
 [context_menu]
 classic_menu = true
-blocked_extensions = ["{CLSID}", "Nom"]    # `explorerbender shell-extensions`
-disabled_verbs = ['Directory\shell\cmd']   # `explorerbender verbs`
+blocked_extensions = ["{CLSID}", "Nom"]    # `filecustomizer shell-extensions`
+disabled_verbs = ['Directory\shell\cmd']   # `filecustomizer verbs`
 
 # Profils : chaque section présente REMPLACE la section de base.
 [profiles.Minimal.navigation_pane]
@@ -107,20 +107,20 @@ drive_absent = "D"              # et/ou drive_present = "E"
 Les dossiers **fréquents** (chez vous ReviPlan, NamelessXIII, sketch : ce ne sont *pas* des épingles) ne sont pas purgés de l'historique : `ShowFrequent=0` les masque. Les dossiers désépinglés sont mémorisés et ré-épinglés par `restore`.
 
 ### Profils et règles (F5)
-`explorerbender apply Minimal` choisit un profil à la main (écrit `%APPDATA%\ExplorerBender\profile`) ; `apply --auto` redonne la main aux règles. Les règles se réévaluent quand `config.toml`/`profile` changent **et** quand un lecteur apparaît ou disparaît (`WM_DEVICECHANGE`, sans polling). Une règle sans condition ne correspond jamais.
+`filecustomizer apply Minimal` choisit un profil à la main (écrit `%APPDATA%\FileCustomizer\profile`) ; `apply --auto` redonne la main aux règles. Les règles se réévaluent quand `config.toml`/`profile` changent **et** quand un lecteur apparaît ou disparaît (`WM_DEVICECHANGE`, sans polling). Une règle sans condition ne correspond jamais.
 
 ## CLI
 
 ```
-explorerbender init
-explorerbender apply [profil] [--auto] [--dry-run] [--elevate] [--restart-explorer] [--config f]
-explorerbender profiles                   profils, règles, profil actif
-explorerbender status                     build, démon, profil, backup, conflits, état de chaque tweak
-explorerbender restore [--dry-run] [--restart-explorer]    (élévation UAC automatique si nécessaire)
-explorerbender stop                       arrête le démon sans rien restaurer
-explorerbender nodes | drives | shell-extensions | verbs     inventaires pour la config
-explorerbender validate [fichier]
-explorerbender debug-pin <dossier>        diagnostic
+filecustomizer init
+filecustomizer apply [profil] [--auto] [--dry-run] [--elevate] [--restart-explorer] [--config f]
+filecustomizer profiles                   profils, règles, profil actif
+filecustomizer status                     build, démon, profil, backup, conflits, état de chaque tweak
+filecustomizer restore [--dry-run] [--restart-explorer]    (élévation UAC automatique si nécessaire)
+filecustomizer stop                       arrête le démon sans rien restaurer
+filecustomizer nodes | drives | shell-extensions | verbs     inventaires pour la config
+filecustomizer validate [fichier]
+filecustomizer debug-pin <dossier>        diagnostic
 ```
 `restore` suspend le démon (marqueur `disabled`) ; `apply` le réactive.
 
@@ -131,11 +131,11 @@ crates/core            config, RegistryBackend/ShellBackend (trait + Mock), back
                        tweaks, moteur, compat, lecteurs — testable sans effet de bord
 crates/daemon          démon résident : fenêtre cachée (TaskbarCreated, WM_DEVICECHANGE),
                        RegNotifyChangeKeyValue, ReadDirectoryChangesW, minuterie ; zéro polling
-crates/cli             explorerbender.exe
-crates/elevated-helper explorerbender-elevated.exe : lancé à la demande (UAC), jamais résident,
+crates/cli             filecustomizer.exe
+crates/elevated-helper filecustomizer-elevated.exe : lancé à la demande (UAC), jamais résident,
                        ne fait que les tweaks `needs_elevation`, clés issues d'une table fixe
 ui/src-tauri + ui/dist interface Tauri 2 (espace de travail Cargo séparé)
-installer/             ExplorerBender.iss (Inno Setup)
+installer/             FileCustomizer.iss (Inno Setup)
 scripts/               install.ps1, uninstall.ps1, register-task.ps1
 docs/                  PHASE0.md, TESTING.md, COMPAT.md
 ```
@@ -159,12 +159,12 @@ Guid « Ce PC » : variantes `Local*` (Documents `{f42ee2d3-…}`, Téléchargem
 
 | Symptôme | Piste |
 |---|---|
-| Rien ne change | `explorerbender status` : tweak « NON VALIDÉ », démon arrêté, config rejetée ? Ouvrez une **nouvelle** fenêtre ; sinon `apply --restart-explorer` (explicite). |
+| Rien ne change | `filecustomizer status` : tweak « NON VALIDÉ », démon arrêté, config rejetée ? Ouvrez une **nouvelle** fenêtre ; sinon `apply --restart-explorer` (explicite). |
 | `CONFLIT` | Un autre outil (Windhawk, une app cloud) remet la valeur. Le démon a cessé de se battre ; modifiez la config ou redémarrez Explorer pour retenter. |
-| « nécessite l'élévation » | Normal pour `this_pc` : `explorerbender apply --elevate` (ou « Appliquer avec élévation » dans l'interface). |
+| « nécessite l'élévation » | Normal pour `this_pc` : `filecustomizer apply --elevate` (ou « Appliquer avec élévation » dans l'interface). |
 | Invite UAC refusée | Rien n'est écrit dans les zones protégées ; relancez quand vous voulez. Si votre compte est « standard », l'UAC demande un administrateur : `HKCU` est alors **le sien**, pas le vôtre — utilisez un compte administrateur. |
-| Journal | `%APPDATA%\ExplorerBender\logs\` (tournant 256 Ko × 2). |
-| Revenir à l'origine | `explorerbender restore`. Ce qui n'a pas pu l'être reste dans `backup.json`. |
+| Journal | `%APPDATA%\FileCustomizer\logs\` (tournant 256 Ko × 2). |
+| Revenir à l'origine | `filecustomizer restore`. Ce qui n'a pas pu l'être reste dans `backup.json`. |
 
 ## Limites connues
 

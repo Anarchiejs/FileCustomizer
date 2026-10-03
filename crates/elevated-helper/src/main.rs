@@ -9,11 +9,11 @@
 
 #![windows_subsystem = "windows"]
 
-use eb_core::config::Config;
-use eb_core::drives::SysEnv;
-use eb_core::session::Session;
-use eb_core::tweak::Report;
-use eb_core::{log, log_error, log_info, paths, profile};
+use fc_core::config::Config;
+use fc_core::drives::SysEnv;
+use fc_core::session::Session;
+use fc_core::tweak::Report;
+use fc_core::{log, log_error, log_info, paths, profile};
 
 fn finish(report: &Report, ok: bool) -> ! {
     let _ = std::fs::create_dir_all(paths::data_dir());
@@ -57,7 +57,7 @@ fn main() {
             // Un process élevé n'hérite pas de l'environnement de l'appelant : on le passe en argument.
             "--home" => {
                 if let Some(h) = args.next() {
-                    std::env::set_var("EXPLORERBENDER_HOME", h);
+                    std::env::set_var("FILECUSTOMIZER_HOME", h);
                 }
             }
             _ => {}

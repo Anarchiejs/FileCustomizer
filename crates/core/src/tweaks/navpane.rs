@@ -78,7 +78,7 @@ fn readable_name(reg: &dyn RegistryBackend, shell: &dyn ShellBackend, clsid: &st
 }
 
 /// Énumère tous les CLSID qui portent `System.IsPinnedToNameSpaceTree` (HKCU et HKLM).
-/// Coûteux (parcourt des milliers de CLSID) : réservé à `explorerbender nodes` et à la
+/// Coûteux (parcourt des milliers de CLSID) : réservé à `filecustomizer nodes` et à la
 /// résolution d'un nom lisible inconnu.
 pub fn discover_nodes(reg: &dyn RegistryBackend, shell: &dyn ShellBackend) -> Result<Vec<NavNode>> {
     let mut found: Vec<NavNode> = Vec::new();
@@ -202,7 +202,7 @@ impl Tweak for NavPane {
                 META.id,
                 ChangeKind::Skipped,
                 format!("Nœud « {u} »"),
-                "introuvable (voir `explorerbender nodes`)",
+                "introuvable (voir `filecustomizer nodes`)",
             );
         }
         reconcile_registry(ctx, META.id, &settings)

@@ -26,7 +26,7 @@ impl Drop for TempHome {
 
 fn helper(home: &Path, verb: &str) -> (Option<i32>, serde_json::Value) {
     let _ = std::fs::remove_file(home.join("elevated-last.json"));
-    let st = Command::new(env!("CARGO_BIN_EXE_explorerbender-elevated"))
+    let st = Command::new(env!("CARGO_BIN_EXE_filecustomizer-elevated"))
         .args([verb, "--dry-run", "--home"])
         .arg(home)
         .status()

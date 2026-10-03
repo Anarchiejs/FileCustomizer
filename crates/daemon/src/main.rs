@@ -1,4 +1,4 @@
-//! Démon résident ExplorerBender.
+//! Démon résident FileCustomizer.
 //!
 //! Un seul thread, une seule attente noyau (`MsgWaitForMultipleObjects`) sur :
 //!   - notifications de registre (`RegNotifyChangeKeyValue`),
@@ -13,14 +13,14 @@
 
 mod watch;
 
-use eb_core::config::Config;
-use eb_core::drives::SysEnv;
-use eb_core::engine;
-use eb_core::profile;
-use eb_core::session::Session;
-use eb_core::status::Status;
-use eb_core::tweak::{ChangeKind, Report, WatchTarget};
-use eb_core::{log, log_debug, log_error, log_info, log_warn, paths};
+use fc_core::config::Config;
+use fc_core::drives::SysEnv;
+use fc_core::engine;
+use fc_core::profile;
+use fc_core::session::Session;
+use fc_core::status::Status;
+use fc_core::tweak::{ChangeKind, Report, WatchTarget};
+use fc_core::{log, log_debug, log_error, log_info, log_warn, paths};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 use watch::{DirWatch, RegWatch};
@@ -70,7 +70,7 @@ fn create_hidden_window() -> Option<HWND> {
     unsafe {
         TASKBAR_CREATED_MSG.store(RegisterWindowMessageW(w!("TaskbarCreated")), Ordering::Relaxed);
         let hinst = GetModuleHandleW(None).ok()?;
-        let class = w!("ExplorerBenderHidden");
+        let class = w!("FileCustomizerHidden");
         let wc = WNDCLASSW {
             lpfnWndProc: Some(wnd_proc),
             hInstance: hinst.into(),
@@ -81,7 +81,7 @@ fn create_hidden_window() -> Option<HWND> {
         CreateWindowExW(
             WINDOW_EX_STYLE(0),
             class,
-            w!("ExplorerBender"),
+            w!("FileCustomizer"),
             WS_POPUP,
             0,
             0,
@@ -257,7 +257,7 @@ fn main() {
     let t_start = Instant::now();
 
     if paths::disabled_marker().exists() {
-        return; // suspendu par `explorerbender restore`
+        return; // suspendu par `filecustomizer restore`
     }
 
     // Instance unique.

@@ -1,5 +1,5 @@
-//! Tests d'intégration du binaire `explorerbender`, sur un dossier de données isolé
-//! (`EXPLORERBENDER_HOME`). Uniquement des commandes qui n'écrivent pas dans le registre :
+//! Tests d'intégration du binaire `filecustomizer`, sur un dossier de données isolé
+//! (`FILECUSTOMIZER_HOME`). Uniquement des commandes qui n'écrivent pas dans le registre :
 //! `init`, `validate`, `--dry-run`.
 
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ struct TempHome(PathBuf);
 
 impl TempHome {
     fn new(name: &str) -> Self {
-        let p = std::env::temp_dir().join(format!("eb-cli-{name}-{}", std::process::id()));
+        let p = std::env::temp_dir().join(format!("fc-cli-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).unwrap();
         Self(p)
@@ -26,9 +26,9 @@ impl Drop for TempHome {
 }
 
 fn run(home: &TempHome, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_explorerbender"))
+    Command::new(env!("CARGO_BIN_EXE_filecustomizer"))
         .args(args)
-        .env("EXPLORERBENDER_HOME", home.path())
+        .env("FILECUSTOMIZER_HOME", home.path())
         .output()
         .unwrap()
 }

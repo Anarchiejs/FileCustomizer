@@ -3,7 +3,7 @@
 //! registre. Le mutex et l'événement d'arrêt dépendent du dossier de données : un vrai démon
 //! sur la session ne gêne pas ces tests, et ces tests ne peuvent pas l'arrêter.
 
-use eb_core::paths;
+use fc_core::paths;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
@@ -17,7 +17,7 @@ struct TempHome(PathBuf);
 
 impl TempHome {
     fn new(name: &str) -> Self {
-        let p = std::env::temp_dir().join(format!("eb-daemon-{name}-{}", std::process::id()));
+        let p = std::env::temp_dir().join(format!("fc-daemon-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).unwrap();
         Self(p)
@@ -37,10 +37,10 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain([0]).collect()
 }
 
-/// Les noms d'objets noyau de l'instance dépendent de `EXPLORERBENDER_HOME` : on le pose dans
+/// Les noms d'objets noyau de l'instance dépendent de `FILECUSTOMIZER_HOME` : on le pose dans
 /// le processus de test pour viser le démon isolé (les autres tests le passent explicitement).
 fn target_instance(home: &Path) {
-    std::env::set_var("EXPLORERBENDER_HOME", home);
+    std::env::set_var("FILECUSTOMIZER_HOME", home);
 }
 
 fn instance_running() -> bool {
@@ -68,7 +68,7 @@ fn signal_stop() -> bool {
 }
 
 fn spawn(home: &Path) -> Child {
-    Command::new(env!("CARGO_BIN_EXE_explorerbender-daemon")).env("EXPLORERBENDER_HOME", home).spawn().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_filecustomizer-daemon")).env("FILECUSTOMIZER_HOME", home).spawn().unwrap()
 }
 
 fn wait_until(timeout: Duration, mut f: impl FnMut() -> bool) -> bool {

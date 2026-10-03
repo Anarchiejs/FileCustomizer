@@ -46,7 +46,7 @@ fn gated_apply(ctx: &mut Ctx, id: &str, what: &str, d: &[RegSetting]) -> Result<
                 id,
                 ChangeKind::Skipped,
                 what,
-                "clé protégée en écriture : nécessite l'élévation (`explorerbender apply --elevate`, invite UAC)",
+                "clé protégée en écriture : nécessite l'élévation (`filecustomizer apply --elevate`, invite UAC)",
             );
             return Ok(());
         }
