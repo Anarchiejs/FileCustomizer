@@ -4,8 +4,10 @@
 
 ```
 cargo test --workspace       # 57 tests, aucun effet sur le registre (voir ci-dessous)
-cargo clippy --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 ```
+
+La CI GitHub Actions (`.github/workflows/ci.yml`, runner Windows) lance les mêmes commandes, plus clippy sur `ui/src-tauri`, à chaque push sur `main` et sur chaque pull request. Le lint `undocumented_unsafe_blocks` est actif : tout bloc `unsafe` doit être précédé d'un commentaire `// SAFETY:`.
 
 Couvert : défauts = rien à faire ; config invalide rejetée ; idempotence (2e passe = 0 écriture) ; `--dry-run` n'écrit rien ; restauration exacte (valeur, absence de valeur, clés créées) ; « première sauvegarde gagne » ; guerre d'écriture arrêtée ; épingles : désépinglage, liste blanche, ré-épinglage, jamais de bascule sur un élément non épinglé, dry-run, `revert`.
 
