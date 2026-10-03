@@ -1,0 +1,53 @@
+name: Release
+
+# Déclenché uniquement par un tag `vX.Y.Z` : construit l'installateur et le joint à une release GitHub.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Installateur (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            ui/src-tauri -> target
+
+      - name: Tests
+        run: cargo test --workspace
+
+      - name: Build (démon, CLI, helper)
+        run: cargo build --release
+
+      - name: Build (interface)
+        run: cargo build --release --manifest-path ui/src-tauri/Cargo.toml
+
+      - name: Installateur (Inno Setup)
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\ExplorerBender.iss
+
+      - name: Somme de contrôle
+        run: |
+          cd dist
+          Get-ChildItem ExplorerBender-Setup-*.exe | ForEach-Object {
+            "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" | Out-File "$($_.Name).sha256" -Encoding ascii
+          }
+
+      - name: Publier la release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/ExplorerBender-Setup-*.exe
+            dist/*.sha256
+          generate_release_notes: true
