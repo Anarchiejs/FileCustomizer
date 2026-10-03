@@ -2,7 +2,7 @@
 
 Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'esthétique) : volet de navigation, Accès rapide, « Ce PC », options d'affichage, menu contextuel. L'utilisateur **déclare** ce qu'il veut dans un fichier de config (ou dans l'interface) ; un petit démon l'**applique et le maintient** quand Windows ou une application le défait.
 
-> **État : les 3 phases sont livrées** (F1–F5, démon, CLI, helper élevé, interface, installateur). Ce qui n'a pas pu être vérifié est listé honnêtement dans [Limites connues](#limites-connues).
+> **État : les 3 phases sont livrées** (F1–F5, démon, CLI, helper élevé, interface, installateur). **Testé en conditions réelles** le 2026-10-03 sur Windows 11 25H2 (26200.9457) : installé avec l'installateur, globalement fonctionnel (détails dans [docs/TESTING.md](docs/TESTING.md#test-en-conditions-réelles)). Ce qui n'a pas pu être vérifié est listé honnêtement dans [Limites connues](#limites-connues).
 
 ## Principes
 
@@ -168,7 +168,7 @@ Guid « Ce PC » : variantes `Local*` (Documents `{f42ee2d3-…}`, Téléchargem
 
 ## Limites connues
 
-- **Testé en conditions réelles** : installé avec l'installateur et utilisé sur la machine de développement (build 26200), globalement fonctionnel. Les points fins de la checklist (`docs/TESTING.md`) n'ont pas tous été confirmés un à un, notamment les valeurs de `LaunchTo` (1 Ce PC, 2 Accueil, 3 Téléchargements, 4 OneDrive), issues de la documentation communautaire, et le rafraîchissement d'une fenêtre Explorateur déjà ouverte.
+- **Test en conditions réelles** ([compte rendu](docs/TESTING.md#test-en-conditions-réelles)) : globalement fonctionnel, mais les points fins de la checklist (`docs/TESTING.md`) n'ont pas tous été confirmés un à un, notamment les valeurs de `LaunchTo` (1 Ce PC, 2 Accueil, 3 Téléchargements, 4 OneDrive), issues de la documentation communautaire, et le rafraîchissement d'une fenêtre Explorateur déjà ouverte.
 - **Interface** : son WebView2 est requis (présent sur Windows 11).
 - **Réseau, Linux (WSL), OneDrive** : Réseau/Linux ne portent pas `System.IsPinnedToNameSpaceTree` ici, OneDrive est absent. Non implémenté (règle : pas de clé non vérifiée).
 - **Ordre des nœuds du volet** : non fait (`SortOrderIndex` existe mais son effet n'est pas validé).

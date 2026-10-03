@@ -17,6 +17,20 @@ Tests d'intégration sur les vrais binaires, chacun dans un `EXPLORERBENDER_HOME
 - **Démon** (`crates/daemon/tests`) : sortie immédiate s'il est suspendu ; `status.json` écrit au démarrage ; deuxième instance bloquée par le mutex ; rechargement de `config.toml` sur événement ; config invalide signalée sans arrêt ; arrêt propre par l'événement nommé. Le mutex et l'événement dépendent du dossier de données : un vrai démon sur la session n'est ni gêné ni arrêté.
 - **Helper élevé** (`crates/elevated-helper/tests`, sans élévation, en `--dry-run`) : une entrée forgée dans `backup.json` (ex. `HKLM\...\Run`) est refusée et signalée, l'entrée légitime est restaurée, rien n'est perdu du fichier ; un dossier de données qui est une jonction est refusé avant toute écriture (code 3).
 
+## Test en conditions réelles
+
+| | |
+|---|---|
+| Rapporté le | 2026-10-03 |
+| Testeur | l'auteur du projet, sur sa machine personnelle (pas une VM) |
+| Système | Windows 11 25H2, build 26200.9457 |
+| Version | 0.1.0, installée avec `ExplorerBender-Setup-0.1.0.exe` |
+| Résultat | **globalement fonctionnel** |
+
+Ce test valide la chaîne complète en usage réel : installation, démarrage du démon par la tâche planifiée, interface et application de la configuration dans l'Explorateur.
+
+Ce qu'il ne couvre pas : les points de la checklist ci-dessous n'ont pas été cochés un à un, et aucun compte rendu point par point n'a été consigné. Restent donc à confirmer individuellement, notamment : les valeurs de `LaunchTo`, le rafraîchissement d'une fenêtre Explorateur déjà ouverte, un vrai `WM_DEVICECHANGE` (branchement d'un disque) et le cycle de désinstallation avec restauration. Un problème constaté plus tard doit être ajouté ici avec la build Windows concernée.
+
 ## Intégration manuelle (checklist)
 
 À faire avec `EXPLORERBENDER_HOME=<dossier de test>` pour isoler config/backup/journaux. Le registre, lui, est bien réel : terminer par `explorerbender restore`.
