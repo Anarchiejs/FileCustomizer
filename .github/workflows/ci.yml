@@ -41,3 +41,6 @@ jobs:
       - name: Tests
         run: cargo test --workspace
 
+      # Scénarios de l'interface (vrai app.js, backend simulé) dans Edge headless, sans dépendance npm.
+      - name: Tests de l'interface
+        run: node ui/test/run.mjs

@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>ExplorerBender (scénarios)</title><link rel="stylesheet" href="../dist/style.css"></head>
+<body>
+<!-- Scénarios de l'interface sur le vrai app.js et un backend simulé. Lancés par `node ui/test/run.mjs`
+     (navigateur headless) ; ouvrables aussi à la main. Résultat dans #result. -->
+<div id="app"></div>
+<pre id="result" hidden></pre>
+<!-- Une boîte de dialogue bloquerait le navigateur headless : elles sont enregistrées (window.__alerts) au lieu de s'ouvrir. -->
+<script>window.__alerts = []; window.alert = (m) => { window.__alerts.push(String(m)); };</script>
+<script src="mock-state.js"></script>
+<script src="../dist/app.js"></script>
+<script src="scenarios.js"></script>
+</body></html>
