@@ -118,6 +118,7 @@ mod tests {
             build: 26200,
             defer_shell: false,
             elevated: false,
+            node_cache: None,
             report: Report::default(),
         };
         ExplorerView.apply(&mut ctx).unwrap();

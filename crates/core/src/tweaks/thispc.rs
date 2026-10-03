@@ -25,6 +25,9 @@ pub static DRIVES_META: TweakMeta = TweakMeta {
     needs_elevation: true,
 };
 
+/// Bits A à Z de `NoDrives`.
+const ALL_DRIVES: u32 = 0x03FF_FFFF;
+
 fn policies() -> RegKey {
     RegKey::hkcu(r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer")
 }
@@ -40,7 +43,10 @@ pub struct ThisPcDrives;
 /// `reconcile_registry` seulement dans un processus élevé ; sinon on signale ce qui reste à faire.
 fn gated_apply(ctx: &mut Ctx, id: &str, what: &str, d: &[RegSetting]) -> Result<()> {
     if !ctx.elevated && !ctx.dry_run {
-        let stale = ctx.backup.entries_for(id).any(|e| !d.iter().any(|s| s.key == e.key && s.name == e.name));
+        let stale = ctx
+            .backup
+            .entries_for(id)
+            .any(|e| !d.iter().any(|s| s.key.same(&e.key) && s.name.eq_ignore_ascii_case(&e.name)));
         if stale || detect_registry(ctx, d)?.iter().any(|i| i.status == ItemStatus::Pending) {
             ctx.report.push_needs_elevation(
                 id,
@@ -76,7 +82,7 @@ fn desired_drives(ctx: &Ctx) -> Vec<RegSetting> {
             Ok(Some(RegValue::Dword(v))) => v,
             _ => 0,
         },
-    };
+    } & ALL_DRIVES;
     let letters: String = (0..26u32).filter(|i| ours & (1 << i) != 0).map(|i| (b'A' + i as u8) as char).collect();
     vec![RegSetting {
         key: policies(),
@@ -198,7 +204,12 @@ pub fn is_trusted_elevated_entry(e: &crate::backup::BackupEntry) -> bool {
         let allowed_created = |k: &RegKey| *k == explorer || Some(k) == explorer.parent().as_ref();
         return e.key == explorer
             && e.name == "NoDrives"
-            && matches!(e.original, None | Some(RegValue::Dword(_)))
+            // 26 lecteurs : aucun bit au-delà de Z n'a de sens (une valeur forgée ne passe pas).
+            && match e.original {
+                None => true,
+                Some(RegValue::Dword(v)) => v & !ALL_DRIVES == 0,
+                _ => false,
+            }
             && e.created_keys.iter().all(allowed_created);
     }
     if e.tweak == FOLDERS_META.id {
@@ -211,7 +222,12 @@ pub fn is_trusted_elevated_entry(e: &crate::backup::BackupEntry) -> bool {
         };
         // La description du dossier existe toujours (vérifié avant d'écrire) : seul PropertyBag peut être créé.
         return e.name == "ThisPCPolicy"
-            && matches!(e.original, None | Some(RegValue::Sz(_)))
+            // Windows n'utilise que ces deux valeurs.
+            && match &e.original {
+                None => true,
+                Some(RegValue::Sz(v)) => v.eq_ignore_ascii_case("Show") || v.eq_ignore_ascii_case("Hide"),
+                _ => false,
+            }
             && e.created_keys.iter().all(|k| *k == view_key);
     }
     false
@@ -288,6 +304,7 @@ mod tests {
             build: 26200,
             defer_shell: false,
             elevated,
+            node_cache: None,
             report: Report::default(),
         };
         tweak.apply(&mut ctx).unwrap();
@@ -400,6 +417,16 @@ mod tests {
             BackupEntry { created_keys: vec![RegKey::hklm(r"SOFTWARE\Policies")], ..ok.clone() },
             // Tweak non élevé portant une clé HKLM
             BackupEntry { tweak: "navpane".into(), ..ok.clone() },
+            // ThisPCPolicy d'origine qui n'est ni Show ni Hide
+            BackupEntry { original: Some(RegValue::Sz("Visible".into())), ..ok.clone() },
+            // NoDrives d'origine avec des bits au-delà de Z
+            BackupEntry {
+                tweak: DRIVES_META.id.into(),
+                key: policies(),
+                name: "NoDrives".into(),
+                original: Some(RegValue::Dword(0xFFFF_FFFF)),
+                ..ok.clone()
+            },
             // NoDrives ailleurs que dans Policies\Explorer
             BackupEntry {
                 tweak: DRIVES_META.id.into(),

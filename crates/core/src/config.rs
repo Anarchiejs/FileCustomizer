@@ -64,6 +64,23 @@ impl Default for General {
     }
 }
 
+impl General {
+    /// Bornes de bon sens : hors de ces plages le démon ne réappliquerait plus rien (anti-rebond de
+    /// plusieurs jours) ou bloquerait toute valeur à la première dérive (0 réécriture tolérée).
+    fn validate(&self) -> Result<()> {
+        let check = |name: &str, v: u32, lo: u32, hi: u32| {
+            if (lo..=hi).contains(&v) {
+                Ok(())
+            } else {
+                Err(Error::Config(format!("general.{name} = {v} : attendu entre {lo} et {hi}")))
+            }
+        };
+        check("debounce_ms", self.debounce_ms, 0, 60_000)?;
+        check("conflict_max_rewrites", self.conflict_max_rewrites, 1, 1_000)?;
+        check("conflict_window_secs", self.conflict_window_secs, 1, 3_600)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NavigationPane {
@@ -202,6 +219,7 @@ impl Config {
                 c.version
             )));
         }
+        c.general.validate()?;
         Ok(c)
     }
 
@@ -593,6 +611,26 @@ show_file_extensions = true
         assert_eq!(c.to_toml_preserving("[[[ cassé").unwrap(), c.to_toml().unwrap());
         // Rien d'ancien : identique à une écriture neuve.
         assert_eq!(Config::from_toml(&c.to_toml_preserving("").unwrap()).unwrap(), c);
+    }
+
+    #[test]
+    fn out_of_range_general_values_are_rejected() {
+        for bad in ["debounce_ms = 999999999", "conflict_max_rewrites = 0", "conflict_window_secs = 0"] {
+            assert!(
+                Config::from_toml(&format!(
+                    "[general]
+{bad}"
+                ))
+                .is_err(),
+                "{bad} accepté"
+            );
+        }
+        assert!(Config::from_toml(
+            "[general]
+debounce_ms = 0
+conflict_max_rewrites = 1"
+        )
+        .is_ok());
     }
 
     #[test]

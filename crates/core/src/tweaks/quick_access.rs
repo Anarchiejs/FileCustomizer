@@ -138,8 +138,7 @@ impl Tweak for QuickAccess {
                         }
                     }
                 }
-                ctx.backup.data.unpinned_quick_access.retain(|x| norm(x) != norm(&p));
-                ctx.backup.save()?;
+                ctx.backup.forget_unpinned(|x| norm(x) == norm(&p))?;
             }
         }
 
@@ -182,8 +181,7 @@ impl Tweak for QuickAccess {
                 ),
                 Err(e) => {
                     // Rien n'a changé : on retire la note pour ne pas « restaurer » une épingle qui n'a jamais disparu.
-                    ctx.backup.data.unpinned_quick_access.retain(|x| norm(x) != norm(&t.parsing_name));
-                    ctx.backup.save()?;
+                    ctx.backup.forget_unpinned(|x| norm(x) == norm(&t.parsing_name))?;
                     ctx.report.push(META.id, ChangeKind::Error, format!("Épingle « {} »", t.name), e.to_string());
                 }
             }
@@ -208,8 +206,7 @@ impl Tweak for QuickAccess {
             let res = if already { Ok(()) } else { ctx.shell.pin(&p) };
             match res {
                 Ok(()) => {
-                    ctx.backup.data.unpinned_quick_access.retain(|x| norm(x) != norm(&p));
-                    ctx.backup.save()?;
+                    ctx.backup.forget_unpinned(|x| norm(x) == norm(&p))?;
                     ctx.report.push(META.id, ChangeKind::Reverted, format!("Épingle {p}"), "ré-épinglé");
                 }
                 Err(e) => ctx.report.push(META.id, ChangeKind::Error, format!("Épingle {p}"), e.to_string()),
@@ -275,6 +272,7 @@ mod tests {
                 report: Report::default(),
                 defer_shell: false,
                 elevated: false,
+                node_cache: None,
             };
             QuickAccess.apply(&mut ctx).unwrap();
             ctx.report
@@ -396,6 +394,7 @@ mod tests {
             report: Report::default(),
             defer_shell: false,
             elevated: false,
+            node_cache: None,
         };
         QuickAccess.revert(&mut ctx).unwrap();
         assert_eq!(r.pinned().len(), 2);

@@ -32,9 +32,10 @@ fn finish(report: &Report, ok: bool) -> ! {
 /// ou un point de jonction sur le chemin du dossier de données (ancêtres compris) est refusé d'emblée.
 fn check_data_dir() -> Result<(), String> {
     let backup = paths::backup_path();
-    let tmp = backup.with_extension("json.tmp");
+    let side = ["json.tmp", "json.bak", "json.corrupt"].map(|e| backup.with_extension(e));
     let mut all: Vec<std::path::PathBuf> = paths::data_dir().ancestors().map(|a| a.to_path_buf()).collect();
-    all.extend([paths::log_dir(), backup, tmp, paths::elevated_result()]);
+    all.extend([paths::log_dir(), backup, paths::elevated_result()]);
+    all.extend(side);
     for p in all {
         match std::fs::symlink_metadata(&p) {
             Ok(m) if is_reparse_point(&m) => {

@@ -5,19 +5,20 @@
 ```
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace       # 59 tests, aucun effet sur le registre (voir ci-dessous)
-node ui/test/run.mjs         # 9 scénarios de l'interface (Edge ou Chrome headless, sans npm)
+cargo test --workspace       # 70 tests, aucun effet sur le registre (voir ci-dessous)
+node ui/test/run.mjs         # 10 scénarios de l'interface (Edge ou Chrome headless, sans npm)
+cargo audit                  # vulnérabilités connues (aussi : --file ui/src-tauri/Cargo.lock)
 ```
 
 La CI GitHub Actions (`.github/workflows/ci.yml`, runner Windows) lance les mêmes commandes, plus fmt et clippy sur `ui/src-tauri`, à chaque push sur `main` et sur chaque pull request. Le lint `undocumented_unsafe_blocks` est actif : tout bloc `unsafe` doit être précédé d'un commentaire `// SAFETY:`.
 
-Couvert : défauts = rien à faire ; config invalide rejetée ; idempotence (2e passe = 0 écriture) ; `--dry-run` n'écrit rien ; restauration exacte (valeur, absence de valeur, clés créées) ; « première sauvegarde gagne » ; guerre d'écriture arrêtée ; épingles : désépinglage, liste blanche, ré-épinglage, jamais de bascule sur un élément non épinglé, dry-run, `revert`.
+Couvert : défauts = rien à faire ; config invalide rejetée ; idempotence (2e passe = 0 écriture) ; `--dry-run` n'écrit rien ; restauration exacte (valeur, absence de valeur, clés créées) ; « première sauvegarde gagne » (y compris entre processus) ; `backup.json` partagé par plusieurs processus sans perte d'entrée (deux fils écrivant en même temps, retrait non « ressuscité ») ; repli sur `backup.json.bak` si le fichier est abîmé, erreur franche sans copie valide ; JSON hexadécimal non-ASCII rejeté sans panique ; valeurs hors bornes de `[general]` rejetées ; résolution des nœuds du volet mise en cache ; guerre d'écriture arrêtée ; épingles : désépinglage, liste blanche, ré-épinglage, jamais de bascule sur un élément non épinglé, dry-run, `revert`.
 
 Tests d'intégration sur les vrais binaires, chacun dans un `FILECUSTOMIZER_HOME` temporaire :
 
-- **CLI** (`crates/cli/tests`) : `init` ne réécrit jamais une config existante et produit une config sans effet ; `validate` rejette un TOML cassé ; profil inconnu refusé ; `apply`/`restore --dry-run` ne créent ni backup ni marqueur.
+- **CLI** (`crates/cli/tests`) : `init` ne réécrit jamais une config existante et produit une config sans effet ; `validate` rejette un TOML cassé ; profil inconnu refusé ; `apply`/`restore --dry-run` ne créent ni backup ni marqueur ; `purge-data` supprime le dossier de données mais, si c'est un point de jonction, ne retire que le lien (la cible reste intacte).
 - **Démon** (`crates/daemon/tests`) : sortie immédiate s'il est suspendu ; `status.json` écrit au démarrage ; deuxième instance bloquée par le mutex ; rechargement de `config.toml` sur événement ; config invalide signalée sans arrêt ; arrêt propre par l'événement nommé. Le mutex et l'événement dépendent du dossier de données : un vrai démon sur la session n'est ni gêné ni arrêté.
-- **Interface** (`ui/test/scenarios.html`, lancé par `ui/test/run.mjs`) : le vrai `app.js` piloté par clics et saisies contre un backend simulé (`ui/test/mock-state.js`) — noms venus du système insérés comme texte (une injection HTML/script échoue le test), masquer un nœud puis enregistrer, liste blanche nettoyée, annulation, action refusée tant que des modifications sont en cours, section de profil héritée/remplacée, suppression d'un profil et de ses règles.
+- **Interface** (`ui/test/scenarios.html`, lancé par `ui/test/run.mjs`) : le vrai `app.js` piloté par clics et saisies contre un backend simulé (`ui/test/mock-state.js`) — noms venus du système insérés comme texte (une injection HTML/script échoue le test), masquer un nœud puis enregistrer, liste blanche nettoyée, annulation, action refusée tant que des modifications sont en cours, section de profil héritée/remplacée, suppression d'un profil et de ses règles, texte chargé renvoyé à l'enregistrement (refus si `config.toml` a changé ailleurs).
 - **Enregistrement depuis l'interface** (`config.rs`) : commentaires et lignes inchangées de `config.toml` conservés, repli sur une écriture neuve si le fichier existant est illisible.
 - **Helper élevé** (`crates/elevated-helper/tests`, sans élévation, en `--dry-run`) : une entrée forgée dans `backup.json` (ex. `HKLM\...\Run`) est refusée et signalée, l'entrée légitime est restaurée, rien n'est perdu du fichier ; un dossier de données qui est une jonction (ou dont un dossier parent en est une) est refusé avant toute écriture (code 3). Lancé élevé, le helper fait ses accès fichiers avec le jeton non élevé de l'Explorateur de la session, et refuse (code 4) si l'invite UAC a été validée avec un autre compte.
 

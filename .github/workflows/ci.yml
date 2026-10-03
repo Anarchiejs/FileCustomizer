@@ -13,13 +13,13 @@ jobs:
     name: Clippy + tests (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: |
             . -> target
@@ -40,6 +40,16 @@ jobs:
       # Aucun effet sur le registre : chaque test d'intégration tourne dans un FILECUSTOMIZER_HOME temporaire.
       - name: Tests
         run: cargo test --workspace
+
+      # Vulnérabilités connues (RustSec) dans les dépendances des deux espaces de travail.
+      - uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2
+        with:
+          tool: cargo-audit
+
+      - name: Audit des dépendances
+        run: |
+          cargo audit
+          cargo audit --file ui/src-tauri/Cargo.lock
 
       # Scénarios de l'interface (vrai app.js, backend simulé) dans Edge headless, sans dépendance npm.
       - name: Tests de l'interface

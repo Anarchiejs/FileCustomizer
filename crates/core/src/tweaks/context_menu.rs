@@ -240,6 +240,7 @@ mod tests {
             build: 26200,
             defer_shell: false,
             elevated: false,
+            node_cache: None,
             report: Report::default(),
         };
         ContextMenu.apply(&mut ctx).unwrap();

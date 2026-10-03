@@ -434,7 +434,7 @@ function pageRaw() {
   t.value = S.config_raw || '# config.toml absent : « Enregistrer le TOML » le créera\n';
   return [pageHead('raw', 'TOML avancé', 'Édition directe de config.toml. Les autres pages modifient aussi le fichier en place, commentaires conservés (l’ancienne version reste dans config.toml.bak).'),
     card(null, null, el('div', { class: 'pad', style: 'padding-top:18px' }, t), el('div', { class: 'actions' }, btn('Enregistrer le TOML', 'check', async () => {
-      try { await invoke('save_raw', { text: t.value }); toast('config.toml enregistré'); await load(); } catch (e) { toast(String(e), 'bad'); }
+      try { await invoke('save_raw', { text: t.value, base: S.config_raw ?? '' }); toast('config.toml enregistré'); await load(); } catch (e) { toast(String(e), 'bad'); }
     }, 'primary')))];
 }
 
@@ -478,7 +478,7 @@ async function act(cmd, args) {
 }
 
 async function save() {
-  try { await invoke('save_config', { config: cfg }); toast('Enregistré — appliqué par le démon'); await load(); } catch (e) { toast(String(e), 'bad'); }
+  try { await invoke('save_config', { config: cfg, base: S.config_raw ?? '' }); toast('Enregistré — appliqué par le démon'); await load(); } catch (e) { toast(String(e), 'bad'); }
 }
 
 let savebar = null;

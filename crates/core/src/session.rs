@@ -9,7 +9,7 @@ use crate::error::Result;
 use crate::paths;
 use crate::registry::WinRegistry;
 use crate::shell::WinShell;
-use crate::tweak::{ChangeKind, Ctx, Report};
+use crate::tweak::{ChangeKind, Ctx, NodeCache, Report};
 use std::time::Instant;
 
 pub struct Session {
@@ -20,6 +20,7 @@ pub struct Session {
     pub build: u32,
     /// Posé uniquement par le helper élevé.
     pub elevated: bool,
+    node_cache: NodeCache,
     started: Instant,
 }
 
@@ -34,6 +35,7 @@ impl Session {
             guard: ConflictGuard::new(5, 30),
             build,
             elevated: false,
+            node_cache: NodeCache::default(),
             reg,
             started: Instant::now(),
         })
@@ -56,6 +58,8 @@ impl Session {
         f: impl FnOnce(&mut Ctx) -> R,
     ) -> (R, Report) {
         self.guard.configure(cfg.general.conflict_max_rewrites, cfg.general.conflict_window_secs);
+        // Un autre processus (démon, CLI, helper élevé) a pu modifier backup.json depuis la dernière passe.
+        let refreshed = self.backup.refresh();
         let mut ctx = Ctx {
             reg: &self.reg,
             shell: &self.shell,
@@ -67,8 +71,16 @@ impl Session {
             build: self.build,
             defer_shell,
             elevated: self.elevated,
+            node_cache: Some(&self.node_cache),
             report: Report::default(),
         };
+        if let Err(e) = refreshed {
+            // Aucune écriture ne passera : chaque sauvegarde relit le fichier sous verrou et échouera aussi.
+            ctx.report.push("backup", ChangeKind::Error, "backup.json", format!("relecture impossible : {e}"));
+        }
+        if let Some(m) = ctx.backup.recovered.take() {
+            ctx.report.push("backup", ChangeKind::Skipped, "backup.json", m);
+        }
         for e in ctx.backup.quarantined().to_vec() {
             ctx.report.push(
                 &e.tweak,
@@ -96,6 +108,11 @@ impl Session {
 
     pub fn detect(&mut self, cfg: &Config) -> Vec<TweakDetection> {
         self.with_ctx(cfg, true, false, engine::detect_all).0
+    }
+
+    /// Oublie les résolutions mises en cache (config modifiée, Explorateur redémarré).
+    pub fn invalidate_caches(&self) {
+        self.node_cache.borrow_mut().clear();
     }
 
     /// Demande aux fenêtres Explorateur ouvertes de se rafraîchir (sans redémarrer explorer.exe).

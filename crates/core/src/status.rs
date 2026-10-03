@@ -27,7 +27,9 @@ impl Status {
             std::fs::create_dir_all(d)?;
         }
         let tmp = path.with_extension("json.tmp");
-        crate::fsutil::write_durable(&tmp, &serde_json::to_vec_pretty(self)?)?;
+        // Pas de synchronisation disque : écrit à chaque passe du démon, et perdre le dernier état
+        // affiché après une coupure de courant est sans conséquence (le renommage reste atomique).
+        std::fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
         std::fs::rename(&tmp, path)?;
         Ok(())
     }

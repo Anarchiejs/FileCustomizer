@@ -121,6 +121,7 @@ filecustomizer stop                       arrête le démon sans rien restaurer
 filecustomizer nodes | drives | shell-extensions | verbs     inventaires pour la config
 filecustomizer validate [fichier]
 filecustomizer debug-pin <dossier>        diagnostic
+filecustomizer purge-data                 supprime le dossier de données (désinstallateur ; faites `restore` avant)
 ```
 `restore` suspend le démon (marqueur `disabled`) ; `apply` le réactive.
 
@@ -165,6 +166,8 @@ Guid « Ce PC » : variantes `Local*` (Documents `{f42ee2d3-…}`, Téléchargem
 | Invite UAC refusée | Rien n'est écrit dans les zones protégées ; relancez quand vous voulez. Si votre compte est « standard », l'UAC demande un administrateur : `HKCU` est alors **le sien**, pas le vôtre — utilisez un compte administrateur. |
 | Journal | `%APPDATA%\FileCustomizer\logs\` (tournant 256 Ko × 2). |
 | Revenir à l'origine | `filecustomizer restore`. Ce qui n'a pas pu l'être reste dans `backup.json`. |
+| « backup.json illisible » | La version précédente (`backup.json.bak`, réécrite avant chaque sauvegarde) prend le relais automatiquement ; le fichier abîmé est gardé dans `backup.json.corrupt`. Sans copie valide, rien n'est appliqué ni restauré : réparez le JSON à la main. |
+| « config.toml a été modifié ailleurs » (interface) | Le fichier a changé depuis l'ouverture de l'interface (éditeur, autre fenêtre) : rechargez, rien n'a été écrasé. |
 
 ## Limites connues
 

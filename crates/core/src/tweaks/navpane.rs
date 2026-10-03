@@ -122,10 +122,20 @@ fn resolve(ctx: &Ctx, name: &str, discovered: &mut Option<Vec<NavNode>>) -> Opti
     if let Some((c, _, _)) = KNOWN.iter().find(|(_, names, _)| names.contains(&lower.as_str())) {
         return Some((*c).to_string());
     }
+    // L'énumération parcourt des milliers de CLSID : le démon garde le résultat (même négatif)
+    // jusqu'au prochain changement de config.
+    if let Some(hit) = ctx.node_cache.and_then(|c| c.borrow().get(&lower).cloned()) {
+        return hit;
+    }
     if discovered.is_none() {
         *discovered = discover_nodes(ctx.reg, ctx.shell).ok();
     }
-    discovered.as_ref()?.iter().find(|n| n.name.trim().to_lowercase() == lower).map(|n| n.clsid.to_lowercase())
+    let found =
+        discovered.as_ref()?.iter().find(|n| n.name.trim().to_lowercase() == lower).map(|n| n.clsid.to_lowercase());
+    if let Some(c) = ctx.node_cache {
+        c.borrow_mut().insert(lower, found.clone());
+    }
+    found
 }
 
 fn value_for(v: Visibility) -> Option<u32> {
@@ -245,6 +255,7 @@ mod tests {
             report: Report::default(),
             defer_shell: false,
             elevated: false,
+            node_cache: None,
         };
         NavPane.apply(&mut ctx).unwrap();
         ctx.report
@@ -295,6 +306,35 @@ mod tests {
         let (mut b, mut g) = (BackupStore::in_memory(), ConflictGuard::new(5, 30));
         run(&cfg("[navigation_pane.nodes]\n\"Accueil\" = \"hide\""), &reg, &mut b, &mut g, false);
         assert_eq!(reg.get_value(&node_key(HOME), PIN_VALUE).unwrap(), Some(RegValue::Dword(0)));
+    }
+
+    #[test]
+    fn unknown_node_name_is_resolved_once_with_cache() {
+        let cache = NodeCache::default();
+        cache.borrow_mut().insert("proton drive".into(), Some("{aaaaaaaa-0000-0000-0000-000000000001}".into()));
+        let reg = MockRegistry::new();
+        let shell = MockShell::default();
+        let c = cfg("[navigation_pane.nodes]
+\"Proton Drive\" = \"hide\"");
+        let (mut b, mut g) = (BackupStore::in_memory(), ConflictGuard::new(5, 30));
+        let mut ctx = Ctx {
+            reg: &reg,
+            shell: &shell,
+            backup: &mut b,
+            cfg: &c,
+            guard: &mut g,
+            dry_run: false,
+            now_ms: 0,
+            build: 26200,
+            report: Report::default(),
+            defer_shell: false,
+            elevated: false,
+            node_cache: Some(&cache),
+        };
+        NavPane.apply(&mut ctx).unwrap();
+        // Résolu par le cache : aucun registre à parcourir (le mock n'a aucun CLSID).
+        let k = node_key("{aaaaaaaa-0000-0000-0000-000000000001}");
+        assert_eq!(reg.get_value(&k, PIN_VALUE).unwrap(), Some(RegValue::Dword(0)));
     }
 
     #[test]

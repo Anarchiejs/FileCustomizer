@@ -100,3 +100,34 @@ fn dry_run_writes_nothing() {
     assert!(o.status.success());
     assert!(!h.path().join("disabled").exists(), "restore --dry-run a suspendu le démon");
 }
+
+#[test]
+fn purge_data_removes_the_data_dir() {
+    let h = TempHome::new("purge");
+    assert!(run(&h, &["init"]).status.success());
+    let o = run(&h, &["purge-data"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(!h.path().exists());
+}
+
+#[test]
+fn purge_data_never_follows_a_junction() {
+    // Le dossier de données est un point de jonction vers un dossier qui ne nous appartient pas :
+    // seul le lien disparaît, la cible et son contenu restent intacts.
+    let h = TempHome::new("purge-junction");
+    let target = h.path().join("cible");
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::write(target.join("precieux.txt"), "x").unwrap();
+    let link = h.path().join("donnees");
+    let ok =
+        Command::new("cmd").args(["/c", "mklink", "/J"]).arg(&link).arg(&target).output().unwrap().status.success();
+    assert!(ok, "mklink /J impossible");
+    let o = Command::new(env!("CARGO_BIN_EXE_filecustomizer"))
+        .arg("purge-data")
+        .env("FILECUSTOMIZER_HOME", &link)
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(!link.exists(), "le lien doit être retiré");
+    assert!(target.join("precieux.txt").exists(), "la cible ne doit jamais être vidée");
+}

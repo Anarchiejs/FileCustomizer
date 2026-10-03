@@ -132,26 +132,35 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   R: Integer;
+  Cli: String;
 begin
+  // Tout se fait à l'étape usUninstall, AVANT la suppression des fichiers : le CLI est encore là.
   if CurUninstallStep = usUninstall then
   begin
+    Cli := ExpandConstant('{app}\filecustomizer.exe');
     if RestoreChosen then
     begin
       // Le désinstallateur est élevé : le CLI le détecte, fait ses accès fichiers avec les droits de
       // l'utilisateur et lance le helper sans nouvelle invite.
       R := -1;  // exe absent = restauration impossible, à signaler
-      if FileExists(ExpandConstant('{app}\filecustomizer.exe')) then
-        Exec(ExpandConstant('{app}\filecustomizer.exe'), 'restore', '', SW_HIDE, ewWaitUntilTerminated, R);
+      if FileExists(Cli) then
+        Exec(Cli, 'restore', '', SW_HIDE, ewWaitUntilTerminated, R);
       if R <> 0 then
         MsgBox('Certaines valeurs n''ont pas pu être restaurées (elles restent listées dans backup.json). ' +
                'Réinstallez puis lancez « filecustomizer restore » avant de supprimer le dossier de données.', mbError, MB_OK);
     end;
-  end;
-  if CurUninstallStep = usPostUninstall then
-  begin
-    if (not UninstallSilent) and
-       (MsgBox('Supprimer aussi la configuration, le backup et les journaux (' + ExpandConstant('{userappdata}\FileCustomizer') + ') ?',
+    // Suppression des données par le CLI et non par DelTree : le CLI travaille avec les droits NON
+    // élevés de l'utilisateur et ne suit aucun lien ni point de jonction. DelTree, lancé ici en
+    // administrateur sur un dossier que n'importe quel programme de l'utilisateur peut modifier,
+    // pourrait être redirigé vers des fichiers système.
+    if (not UninstallSilent) and FileExists(Cli) and
+       (MsgBox('Supprimer aussi la configuration, le backup et les journaux (' + ExpandConstant('{userappdata}\FileCustomizer') + ') ?' + #13#10#13#10 +
+               'Sans restauration préalable, le backup est perdu : les modifications ne pourront plus être annulées.',
                mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES) then
-      DelTree(ExpandConstant('{userappdata}\FileCustomizer'), True, True, True);
+    begin
+      Exec(Cli, 'purge-data', '', SW_HIDE, ewWaitUntilTerminated, R);
+      if R <> 0 then
+        MsgBox('Le dossier de données n''a pas pu être supprimé entièrement : ' + ExpandConstant('{userappdata}\FileCustomizer'), mbError, MB_OK);
+    end;
   end;
 end;

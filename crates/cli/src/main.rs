@@ -42,6 +42,8 @@ COMMANDES
   verbs                     Verbes statiques désactivables (pour [context_menu] disabled_verbs)
   validate [fichier]        Vérifie la syntaxe d'une configuration
   debug-pin <dossier>       (diagnostic) épingle un dossier à l'Accès rapide, ou le désépingle s'il l'est déjà
+  purge-data                Supprime le dossier de données (config, backup, journaux) ; utilisé par le
+                            désinstallateur. Le backup est perdu : faites `restore` avant si besoin.
 
 OPTIONS
   --dry-run                 (apply, restore) liste ce qui serait modifié, n'écrit rien
@@ -129,6 +131,7 @@ fn run(o: &Opts) -> u8 {
         "verbs" => cmd_verbs(),
         "validate" => cmd_validate(o),
         "debug-pin" => cmd_debug_pin(o),
+        "purge-data" => cmd_purge_data(),
         other => {
             eprintln!("commande inconnue : {other}\n\n{HELP}");
             2
@@ -148,10 +151,21 @@ fn load_config(o: &Opts) -> Result<Config, u8> {
 }
 
 fn open_session() -> Result<Session, u8> {
-    Session::open().map_err(|e| {
-        eprintln!("{e}");
-        1
-    })
+    match Session::open() {
+        Ok(s) => {
+            if let Some(m) = &s.backup.recovered {
+                eprintln!("avertissement : {m}");
+            }
+            Ok(s)
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            eprintln!(
+                "(copies conservées à côté : backup.json.bak = version précédente, backup.json.corrupt = fichier abîmé)"
+            );
+            Err(1)
+        }
+    }
 }
 
 fn wide(name: &str) -> Vec<u16> {
@@ -208,6 +222,12 @@ fn exit_for(r: &Report) -> u8 {
 }
 
 fn restart_explorer() {
+    if fsutil::process_elevated() {
+        // `taskkill /im` viserait les Explorateurs de TOUTES les sessions, et l'Explorateur relancé
+        // d'ici tournerait élevé : on ne le fait que depuis un processus ordinaire.
+        eprintln!("--restart-explorer ignoré : processus élevé (relancez sans élévation).");
+        return;
+    }
     println!("Redémarrage d'explorer.exe (demandé explicitement)...");
     let _ = Command::new("taskkill").args(["/f", "/im", "explorer.exe"]).output();
     // Windows relance normalement le shell tout seul ; on ne le force que s'il tarde.
@@ -473,10 +493,8 @@ fn cmd_stop() -> u8 {
 
 fn cmd_restore(o: &Opts) -> u8 {
     let cfg = Config::default();
-    let mut s = match open_session() {
-        Ok(s) => s,
-        Err(c) => return c,
-    };
+    // Suspendre le démon AVANT de lire backup.json : ce qu'il écrirait pendant la restauration
+    // serait sinon invisible pour nous (chaque passe relit aussi le fichier, par sécurité).
     if !o.dry_run {
         // Suspendre d'abord : sinon le démon réappliquerait la config en nous voyant restaurer.
         let _ = std::fs::create_dir_all(paths::data_dir());
@@ -488,6 +506,10 @@ fn cmd_restore(o: &Opts) -> u8 {
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     }
+    let mut s = match open_session() {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
     let r = s.revert(&cfg, o.dry_run);
     print_changes(&r.changes);
     let mut code = exit_for(&r);
@@ -709,6 +731,37 @@ fn cmd_debug_pin(o: &Opts) -> u8 {
         }
         Err(e) => {
             eprintln!("{e}");
+            1
+        }
+    }
+}
+
+/// Supprime le dossier de données. Appelé par le désinstallateur (élevé) : comme tout le CLI, avec les
+/// droits NON élevés de l'utilisateur, et `remove_dir_all` ne suit ni liens ni points de jonction.
+/// Un dossier de données qui est lui-même un lien n'est pas vidé : seul le lien est retiré.
+fn cmd_purge_data() -> u8 {
+    use std::os::windows::fs::MetadataExt;
+    let dir = paths::data_dir();
+    let meta = match std::fs::symlink_metadata(&dir) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return 0,
+        Err(e) => {
+            eprintln!("{} : {e}", dir.display());
+            return 1;
+        }
+    };
+    if meta.file_attributes() & 0x400 != 0 {
+        // FILE_ATTRIBUTE_REPARSE_POINT : on retire le lien, jamais la cible.
+        let r = std::fs::remove_dir(&dir).or_else(|_| std::fs::remove_file(&dir));
+        return u8::from(r.is_err());
+    }
+    match std::fs::remove_dir_all(&dir) {
+        Ok(()) => {
+            println!("{} supprimé.", dir.display());
+            0
+        }
+        Err(e) => {
+            eprintln!("{} : {e}", dir.display());
             1
         }
     }

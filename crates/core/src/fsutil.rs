@@ -20,21 +20,30 @@ pub fn write_durable(path: &Path, data: &[u8]) -> std::io::Result<()> {
 }
 
 #[cfg(windows)]
-pub use win::{as_user, drop_file_rights_to_user, process_elevated};
+pub use win::{as_user, drop_file_rights_to_user, lock_file, process_elevated, FileLock};
 
 #[cfg(not(windows))]
 pub fn as_user<R>(f: impl FnOnce() -> R) -> R {
     f()
 }
 
+#[cfg(not(windows))]
+pub struct FileLock;
+#[cfg(not(windows))]
+pub fn lock_file(_path: &Path) -> std::io::Result<FileLock> {
+    Ok(FileLock)
+}
+
 #[cfg(windows)]
 mod win {
     use std::cell::Cell;
     use std::sync::atomic::{AtomicIsize, Ordering};
-    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0};
     use windows::Win32::Security::*;
     use windows::Win32::System::Threading::{
-        GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
+        CreateMutexW, GetCurrentProcess, OpenProcess, OpenProcessToken, ReleaseMutex, WaitForSingleObject,
+        PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows::Win32::UI::WindowsAndMessaging::{GetShellWindow, GetWindowThreadProcessId};
 
@@ -79,6 +88,43 @@ mod win {
         });
         let _revert = Revert;
         f()
+    }
+
+    /// Verrou inter-processus sur un fichier (mutex nommé de la session), libéré à la destruction.
+    pub struct FileLock(HANDLE);
+
+    impl Drop for FileLock {
+        fn drop(&mut self) {
+            // SAFETY: mutex possédé par ce thread (acquis dans `lock_file`), libéré puis refermé une seule fois.
+            unsafe {
+                let _ = ReleaseMutex(self.0);
+                let _ = CloseHandle(self.0);
+            }
+        }
+    }
+
+    /// Prend le verrou de `path` (10 s au plus). Le mutex est créé avec les droits NON élevés
+    /// (`as_user`) : créé par le helper élevé avec son jeton admin, il serait inaccessible au démon.
+    pub fn lock_file(path: &std::path::Path) -> std::io::Result<FileLock> {
+        let name: Vec<u16> = crate::paths::file_lock_name(path).encode_utf16().chain([0]).collect();
+        // SAFETY: `name` est un nom UTF-16 terminé par NUL, vivant pendant l'appel.
+        let h = as_user(|| unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr())) })
+            .map_err(|e| std::io::Error::other(format!("verrou {} : {e}", path.display())))?;
+        // SAFETY: `h` est le handle de mutex obtenu juste avant.
+        let r = unsafe { WaitForSingleObject(h, 10_000) };
+        // Un propriétaire mort en tenant le verrou (WAIT_ABANDONED) n'empêche pas de continuer :
+        // les écritures sont atomiques (fichier temporaire + renommage), le fichier reste cohérent.
+        if r == WAIT_OBJECT_0 || r == WAIT_ABANDONED {
+            return Ok(FileLock(h));
+        }
+        // SAFETY: handle obtenu ci-dessus, non possédé, refermé une seule fois.
+        unsafe {
+            let _ = CloseHandle(h);
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("{} verrouillé par un autre processus", path.display()),
+        ))
     }
 
     struct Owned(HANDLE);

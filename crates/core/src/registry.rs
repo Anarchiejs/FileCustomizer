@@ -47,6 +47,10 @@ impl RegKey {
     pub fn parent(&self) -> Option<Self> {
         self.path.rsplit_once('\\').map(|(p, _)| Self { hive: self.hive, path: p.to_string(), view: self.view })
     }
+    /// Même clé au sens du registre (insensible à la casse).
+    pub fn same(&self, other: &Self) -> bool {
+        self.hive == other.hive && self.view == other.view && self.path.to_lowercase() == other.path.to_lowercase()
+    }
     pub fn display(&self) -> String {
         let h = match self.hive {
             Hive::Hkcu => "HKCU",
@@ -99,13 +103,13 @@ mod hex_bytes {
     }
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
         let s = String::deserialize(d)?;
-        if s.len() % 2 != 0 {
-            return Err(serde::de::Error::custom("hex de longueur impaire"));
+        // Octets, pas tranches de `str` : un caractère non-ASCII ferait paniquer `&s[i..i + 2]`.
+        let b = s.as_bytes();
+        if b.len() % 2 != 0 || !b.iter().all(u8::is_ascii_hexdigit) {
+            return Err(serde::de::Error::custom("hexadécimal invalide"));
         }
-        (0..s.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(serde::de::Error::custom))
-            .collect()
+        let digit = |c: u8| (c as char).to_digit(16).unwrap_or(0) as u8;
+        Ok(b.as_chunks::<2>().0.iter().map(|[h, l]| digit(*h) << 4 | digit(*l)).collect())
     }
 }
 
@@ -332,13 +336,33 @@ mod win {
             if r != ERROR_SUCCESS {
                 return Err(map_err(r, key));
             }
-            let mut buf = vec![0u8; len as usize];
-            // SAFETY: `buf` fait exactement `len` octets, taille transmise à l'API qui n'écrit pas au-delà.
-            let r = unsafe {
-                RegQueryValueExW(h.0, PCWSTR(n.as_ptr()), None, Some(&mut ty), Some(buf.as_mut_ptr()), Some(&mut len))
-            };
-            if r != ERROR_SUCCESS {
-                return Err(map_err(r, key));
+            // La valeur peut grandir entre les deux appels (autre processus) : on réessaie avec la nouvelle taille.
+            let mut buf;
+            let mut tries = 0;
+            loop {
+                buf = vec![0u8; len as usize];
+                // SAFETY: `buf` fait exactement `len` octets, taille transmise à l'API qui n'écrit pas au-delà.
+                let r = unsafe {
+                    RegQueryValueExW(
+                        h.0,
+                        PCWSTR(n.as_ptr()),
+                        None,
+                        Some(&mut ty),
+                        Some(buf.as_mut_ptr()),
+                        Some(&mut len),
+                    )
+                };
+                tries += 1;
+                if r == ERROR_MORE_DATA && tries < 5 {
+                    continue;
+                }
+                if r == ERROR_FILE_NOT_FOUND {
+                    return Ok(None);
+                }
+                if r != ERROR_SUCCESS {
+                    return Err(map_err(r, key));
+                }
+                break;
             }
             buf.truncate(len as usize);
             let utf16 =
@@ -433,8 +457,9 @@ mod win {
             let leaf = key.path.rsplit('\\').next().unwrap_or_default();
             let Some(ph) = open(&parent, KEY_WRITE_ACCESS)? else { return Ok(false) };
             let l = wide(leaf);
+            // RegDeleteKeyExW avec la vue explicite : RegDeleteKeyW ne la précise pas pour la sous-clé.
             // SAFETY: `ph` est la clé parente ouverte ; `l` est terminé par NUL.
-            let r = unsafe { RegDeleteKeyW(ph.0, PCWSTR(l.as_ptr())) };
+            let r = unsafe { RegDeleteKeyExW(ph.0, PCWSTR(l.as_ptr()), sam(key.view, REG_SAM_FLAGS(0)).0, None) };
             if r != ERROR_SUCCESS {
                 return Err(map_err(r, key));
             }

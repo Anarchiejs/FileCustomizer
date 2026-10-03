@@ -105,8 +105,14 @@ pub struct Ctx<'a> {
     /// Processus élevé (helper à la demande). Le démon et le CLI normal ne le sont JAMAIS : les
     /// tweaks qui écrivent en HKLM refusent d'agir sans ce drapeau.
     pub elevated: bool,
+    /// Résolutions coûteuses (nom de nœud du volet -> CLSID), gardées par le démon entre deux passes.
+    /// `None` : pas de cache (CLI, tests).
+    pub node_cache: Option<&'a NodeCache>,
     pub report: Report,
 }
+
+/// Nom de nœud en minuscules -> CLSID (`None` : introuvable). Vidé quand la config change.
+pub type NodeCache = std::cell::RefCell<std::collections::BTreeMap<String, Option<String>>>;
 
 /// Ce que le démon doit surveiller pour ce tweak (événementiel, jamais de polling).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -220,7 +226,7 @@ pub fn reconcile_registry(ctx: &mut Ctx, tweak: &str, desired: &[RegSetting]) ->
     let stale: Vec<_> = ctx
         .backup
         .entries_for(tweak)
-        .filter(|e| !desired.iter().any(|s| s.key == e.key && s.name == e.name))
+        .filter(|e| !desired.iter().any(|s| s.key.same(&e.key) && s.name.eq_ignore_ascii_case(&e.name)))
         .cloned()
         .collect();
     for e in stale {

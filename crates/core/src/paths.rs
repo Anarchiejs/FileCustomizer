@@ -47,16 +47,20 @@ pub fn stop_event_name() -> String {
 fn instance_suffix() -> String {
     match std::env::var_os("FILECUSTOMIZER_HOME") {
         None => String::new(),
-        Some(h) => {
-            // FNV-1a : stable d'un processus à l'autre (contrairement à `DefaultHasher`).
-            let h = h
-                .to_string_lossy()
-                .to_lowercase()
-                .bytes()
-                .fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3));
-            format!(".{h:016x}")
-        }
+        Some(h) => format!(".{:016x}", path_hash(&h.to_string_lossy())),
     }
+}
+
+/// Empreinte d'un chemin, insensible à la casse. FNV-1a : stable d'un processus à l'autre
+/// (contrairement à `DefaultHasher`), donc utilisable dans des noms d'objets noyau partagés.
+pub fn path_hash(p: &str) -> u64 {
+    p.to_lowercase().bytes().fold(0xcbf2_9ce4_8422_2325u64, |a, b| (a ^ b as u64).wrapping_mul(0x100_0000_01b3))
+}
+
+/// Mutex qui sérialise les lectures-modifications-écritures d'un fichier partagé entre le démon,
+/// le CLI (lancé aussi par l'interface) et le helper élevé.
+pub fn file_lock_name(path: &std::path::Path) -> String {
+    format!("Local\\FileCustomizer.File.{:016x}", path_hash(&path.to_string_lossy()))
 }
 
 /// Profil choisi à la main (`filecustomizer apply <profil>`). Absent = les règles décident.

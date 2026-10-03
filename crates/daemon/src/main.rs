@@ -99,6 +99,17 @@ fn create_hidden_window() -> Option<HWND> {
     }
 }
 
+/// Nature d'une passe d'application.
+#[derive(Clone, Copy, PartialEq)]
+enum Pass {
+    /// Démarrage : registre seulement, notification Shell reportée à la passe complète qui suit.
+    Startup,
+    /// Après un événement registre : registre seulement (aucun appel COM/Shell), notification immédiate.
+    Registry,
+    /// Tout, y compris l'Accès rapide via le Shell.
+    Full,
+}
+
 enum Source {
     Stop,
     Timer,
@@ -121,6 +132,8 @@ struct Daemon {
     cfg_watch: Option<DirWatch>,
     timer: HANDLE,
     timer_armed: bool,
+    /// La prochaine passe doit être complète (Shell compris) : seuls les événements registre n'en ont pas besoin.
+    full_pending: bool,
     /// Un événement lié à notre propre action est ignoré jusqu'à cet instant.
     ignore_until: Option<Instant>,
     /// La passe rapide du démarrage a modifié le registre ; la notification Shell suit dans la passe complète.
@@ -193,6 +206,7 @@ impl Daemon {
                 self.cfg_error = None;
                 // L'utilisateur vient de changer d'avis : on retente les clés en conflit.
                 self.session.guard.reset();
+                self.session.invalidate_caches();
                 log_info!("configuration rechargée");
             }
             Err(e) => {
@@ -204,21 +218,31 @@ impl Daemon {
         self.rebuild_watches();
     }
 
-    /// `fast` : registre seulement (démarrage). Le volet COM/Shell suit via la minuterie.
-    fn apply(&mut self, reason: &str, fast: bool) {
+    /// Programme une passe complète (Shell compris).
+    fn arm_full(&mut self, ms: u32) {
+        self.full_pending = true;
+        self.arm_timer(ms);
+    }
+
+    fn apply(&mut self, reason: &str, pass: Pass) {
         let t0 = Instant::now();
-        let report =
-            if fast { self.session.apply_registry_only(&self.cfg) } else { self.session.apply(&self.cfg, false) };
+        let report = match pass {
+            Pass::Full => self.session.apply(&self.cfg, false),
+            Pass::Startup | Pass::Registry => self.session.apply_registry_only(&self.cfg),
+        };
         let changed =
             report.changes.iter().filter(|c| c.kind == ChangeKind::Applied || c.kind == ChangeKind::Reverted).count();
-        if fast && changed > 0 {
-            self.notify_pending = true;
-        } else if !fast && self.notify_pending {
-            // (si cette passe a elle-même modifié quelque chose, le moteur a déjà notifié)
-            if changed == 0 {
-                self.session.notify();
+        match pass {
+            Pass::Startup => self.notify_pending |= changed > 0,
+            Pass::Registry if changed > 0 => self.session.notify(),
+            Pass::Registry => {}
+            Pass::Full => {
+                // (si cette passe a elle-même modifié quelque chose, le moteur a déjà notifié)
+                if self.notify_pending && changed == 0 {
+                    self.session.notify();
+                }
+                self.notify_pending = false;
             }
-            self.notify_pending = false;
         }
         log_info!("application ({reason}) : {changed} modification(s) en {} ms", t0.elapsed().as_millis());
         for c in report.changes.iter().filter(|c| !matches!(c.kind, ChangeKind::Unchanged)) {
@@ -235,10 +259,13 @@ impl Daemon {
                 Some(Instant::now() + std::time::Duration::from_millis(self.cfg.general.debounce_ms as u64 * 2));
         }
         self.write_status(&report);
-        // Le démon doit rester sous quelques Mo : on rend au système les pages utilisées par COM/Shell.
-        // SAFETY: le pseudo-handle du processus courant est toujours valide.
-        unsafe {
-            let _ = EmptyWorkingSet(GetCurrentProcess());
+        // Le démon doit rester sous quelques Mo : on rend au système les pages utilisées par COM/Shell
+        // (inutile après une passe registre seul, qui n'en charge pas).
+        if pass != Pass::Registry {
+            // SAFETY: le pseudo-handle du processus courant est toujours valide.
+            unsafe {
+                let _ = EmptyWorkingSet(GetCurrentProcess());
+            }
         }
     }
 
@@ -333,6 +360,7 @@ fn main() {
         cfg_watch: DirWatch::open(&paths::data_dir(), &["config.toml", "disabled", "profile"]),
         timer,
         timer_armed: false,
+        full_pending: false,
         ignore_until: None,
         notify_pending: false,
     };
@@ -340,10 +368,10 @@ fn main() {
         log_warn!("config.toml non surveillé : les changements ne seront pris en compte qu'au prochain démarrage");
     }
     d.rebuild_watches();
-    d.apply("démarrage, registre", true);
+    d.apply("démarrage, registre", Pass::Startup);
     log_info!("prêt en {} ms (registre appliqué, surveillances armées)", t_start.elapsed().as_millis());
     // Le travail Shell/COM (Accès rapide) passe après, sans retarder l'état « prêt ».
-    d.arm_timer(1);
+    d.arm_full(1);
 
     'main: loop {
         // Table des sources : reconstruite à chaque tour car les watchers peuvent changer.
@@ -390,15 +418,16 @@ fn main() {
                 if r.profile != d.profile {
                     d.select(d.base.clone());
                     d.rebuild_watches();
-                    d.arm_timer(d.cfg.general.debounce_ms);
+                    d.arm_full(d.cfg.general.debounce_ms);
                 }
             }
             if flags & FLAG_TASKBAR != 0 {
                 log_info!("explorer.exe (re)démarré (TaskbarCreated)");
                 // Nouvelle session shell : on laisse une nouvelle chance aux valeurs mises en conflit.
                 d.session.guard.reset();
+                d.session.invalidate_caches();
                 // Délai : à ce stade le shell finit tout juste de s'initialiser.
-                d.arm_timer(d.cfg.general.debounce_ms);
+                d.arm_full(d.cfg.general.debounce_ms);
             }
             continue;
         }
@@ -414,7 +443,8 @@ fn main() {
             }
             Source::Timer => {
                 d.timer_armed = false;
-                d.apply("événement", false);
+                let pass = if std::mem::take(&mut d.full_pending) { Pass::Full } else { Pass::Registry };
+                d.apply("événement", pass);
             }
             Source::Config => {
                 let mut changed = false;
@@ -427,7 +457,7 @@ fn main() {
                         break 'main;
                     }
                     d.reload_config();
-                    d.arm_timer(200);
+                    d.arm_full(200);
                 }
             }
             Source::Reg(i) => {
@@ -441,7 +471,7 @@ fn main() {
             Source::Qa(i) => {
                 let matched = d.qa_watches[i].collect();
                 if matched && !d.ignoring() {
-                    d.arm_timer(d.cfg.general.debounce_ms);
+                    d.arm_full(d.cfg.general.debounce_ms);
                 }
             }
         }

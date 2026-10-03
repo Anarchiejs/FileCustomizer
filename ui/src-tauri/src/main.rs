@@ -85,6 +85,19 @@ fn get_state() -> Result<Value, String> {
     }))
 }
 
+/// `base` : le texte de config.toml tel que l'interface l'a chargé. S'il a changé depuis (éditeur,
+/// autre fenêtre), on refuse plutôt que d'écraser ces modifications sans le dire.
+fn check_unchanged(base: Option<&str>) -> Result<(), String> {
+    let Some(base) = base else { return Ok(()) };
+    let current = std::fs::read_to_string(paths::config_path()).unwrap_or_default();
+    if current != base {
+        return Err("config.toml a été modifié ailleurs depuis l'ouverture : rechargez (vos changements dans \
+                    l'interface ne sont pas enregistrés)"
+            .into());
+    }
+    Ok(())
+}
+
 fn write_config_text(text: &str) -> Result<(), String> {
     let path = paths::config_path();
     std::fs::create_dir_all(paths::data_dir()).map_err(|e| e.to_string())?;
@@ -102,7 +115,8 @@ fn write_config_text(text: &str) -> Result<(), String> {
 
 /// Enregistre la configuration éditée dans l'interface (validée avant d'être écrite).
 #[tauri::command(async)]
-fn save_config(config: Value) -> Result<(), String> {
+fn save_config(config: Value, base: Option<String>) -> Result<(), String> {
+    check_unchanged(base.as_deref())?;
     let cfg: Config = serde_json::from_value(config).map_err(|e| format!("configuration invalide : {e}"))?;
     // Réécrit le fichier existant en place : ses commentaires et les lignes inchangées sont conservés.
     let existing = std::fs::read_to_string(paths::config_path()).unwrap_or_default();
@@ -114,7 +128,8 @@ fn save_config(config: Value) -> Result<(), String> {
 
 /// Enregistre le TOML brut (onglet avancé, conserve les commentaires).
 #[tauri::command(async)]
-fn save_raw(text: String) -> Result<(), String> {
+fn save_raw(text: String, base: Option<String>) -> Result<(), String> {
+    check_unchanged(base.as_deref())?;
     Config::from_toml(&text).map_err(|e| e.to_string())?;
     write_config_text(&text)
 }

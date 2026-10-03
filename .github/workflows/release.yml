@@ -13,15 +13,30 @@ jobs:
     name: Installateur (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: |
             . -> target
             ui/src-tauri -> target
+
+      # Le tag, les manifestes Cargo, l'installateur et l'interface doivent annoncer la même version.
+      - name: Cohérence des versions
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $found = [ordered]@{
+            'Cargo.toml'                 = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+            'ui/src-tauri/Cargo.toml'    = (Select-String -Path ui/src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+            'ui/src-tauri/tauri.conf.json' = (Get-Content ui/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+            'installer/FileCustomizer.iss' = (Select-String -Path installer/FileCustomizer.iss -Pattern '#define AppVersion "(.+)"').Matches[0].Groups[1].Value
+          }
+          $bad = $found.GetEnumerator() | Where-Object { $_.Value -ne $tag }
+          $found.GetEnumerator() | ForEach-Object { "$($_.Key) : $($_.Value)" }
+          if ($bad) { throw "version différente du tag v$tag : $($bad.Key -join ', ')" }
 
       - name: Tests
         run: cargo test --workspace
@@ -34,8 +49,14 @@ jobs:
 
       - name: Installateur (Inno Setup)
         run: |
-          choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\FileCustomizer.iss
+          # Version figée et empreinte vérifiée (publiée par jrsoftware) : pas de paquet tiers non épinglé.
+          $url = 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe'
+          $sha = '9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732'
+          Invoke-WebRequest $url -OutFile innosetup.exe
+          if ((Get-FileHash innosetup.exe -Algorithm SHA256).Hash.ToLower() -ne $sha) { throw 'empreinte Inno Setup inattendue' }
+          Start-Process innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/DIR=C:\InnoSetup' -Wait
+          & 'C:\InnoSetup\ISCC.exe' installer\FileCustomizer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC a échoué ($LASTEXITCODE)" }
 
       - name: Somme de contrôle
         run: |
@@ -45,7 +66,7 @@ jobs:
           }
 
       - name: Publier la release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             dist/FileCustomizer-Setup-*.exe

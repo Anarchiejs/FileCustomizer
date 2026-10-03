@@ -127,6 +127,13 @@ const SCENARIOS = [
     await saveNow();
     check(same(window.__saved.rules, []), 'règle orpheline envoyée');
   }],
+  ['enregistrer envoie le texte chargé (détection des modifications externes)', async () => {
+    await goto('Volet de navigation');
+    button('Masquer', rowOf('Galerie')).click();
+    await saveNow();
+    const call = window.__calls.filter((c) => c[0] === 'save_config').pop();
+    check(call && call[1].base === 'version = 1\n', 'base absente : ' + JSON.stringify(call && call[1]));
+  }],
 ];
 
 async function main() {

@@ -43,7 +43,15 @@ if ($p -and (($p -split ';') -contains $InstallDir)) {
   [Environment]::SetEnvironmentVariable('Path', (($p -split ';' | Where-Object { $_ -ne $InstallDir }) -join ';'), 'User')
 }
 
-if (Test-Path $InstallDir) { [IO.Directory]::Delete($InstallDir, $true); Write-Host "Binaires supprimés." }
-if ($RemoveData -and (Test-Path $DataDir)) { [IO.Directory]::Delete($DataDir, $true); Write-Host "Données supprimées." }
+# Données supprimées par le CLI (droits NON élevés de l'utilisateur, aucun lien ni point de jonction
+# suivi) AVANT les binaires : ce script tourne en administrateur sur un dossier que tout programme de
+# l'utilisateur peut modifier.
+if ($RemoveData -and (Test-Path $DataDir)) {
+  if (-not (Test-Path $cli)) { throw "CLI introuvable ($cli) : supprimez $DataDir à la main, sans élévation." }
+  & $cli purge-data
+  if ($LASTEXITCODE -ne 0) { throw "Suppression des données incomplète : $DataDir" }
+  Write-Host "Données supprimées."
+}
 elseif (Test-Path $DataDir) { Write-Host "Données conservées dans $DataDir (-RemoveData pour les supprimer)." }
+if (Test-Path $InstallDir) { [IO.Directory]::Delete($InstallDir, $true); Write-Host "Binaires supprimés." }
 Write-Host "FileCustomizer est désinstallé."
