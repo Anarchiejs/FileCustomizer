@@ -2,13 +2,15 @@
 .SYNOPSIS
   Installe FileCustomizer pour l'utilisateur courant : binaires, dossier de données, tâche planifiée.
 .DESCRIPTION
-  - Copie filecustomizer.exe et filecustomizer-daemon.exe dans %LOCALAPPDATA%\Programs\FileCustomizer
+  - Copie les binaires dans %ProgramFiles%\FileCustomizer (dossier protégé : le helper élevé ne
+    doit pas pouvoir être remplacé par un programme de l'utilisateur)
   - Crée %APPDATA%\FileCustomizer\config.toml (documenté, ne modifie RIEN tant que vous ne l'éditez pas)
   - Crée la tâche planifiée « FileCustomizer » : déclencheur « À l'ouverture de session », délai 0,
     priorité 3 (au-dessus de la normale, pas temps réel), privilèges NORMAUX (pas d'admin :
     le démon n'écrit que dans HKCU), un seul exemplaire, relance auto en cas de plantage.
   - Démarre le démon immédiatement (pas besoin de se reconnecter).
-  Ne nécessite pas d'élévation. Aucune clé Run : elle démarrerait trop tard.
+  À lancer dans un PowerShell administrateur ouvert avec VOTRE compte (le dossier de données et la
+  tâche planifiée sont ceux du compte courant). Aucune clé Run : elle démarrerait trop tard.
 .PARAMETER Source
   Dossier contenant les .exe (défaut : ..\target\release).
 .PARAMETER AddToPath
@@ -19,9 +21,18 @@ param(
   [string]$Source = (Join-Path $PSScriptRoot '..\target\release'),
   [switch]$AddToPath
 )
+#Requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
 $TaskName = 'FileCustomizer'
-$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\FileCustomizer'
+$InstallDir = Join-Path $env:ProgramFiles 'FileCustomizer'
+
+# Versions <= 0.1.0 : installation par utilisateur, à retirer (les données sont conservées).
+$OldDir = Join-Path $env:LOCALAPPDATA 'Programs\FileCustomizer'
+if (Test-Path (Join-Path $OldDir 'filecustomizer.exe')) {
+  & (Join-Path $OldDir 'filecustomizer.exe') stop | Out-Null
+  Start-Sleep -Milliseconds 500
+}
+if (Test-Path $OldDir) { [IO.Directory]::Delete($OldDir, $true) }
 
 foreach ($f in 'filecustomizer.exe', 'filecustomizer-daemon.exe', 'filecustomizer-elevated.exe') {
   if (-not (Test-Path (Join-Path $Source $f))) { throw "Introuvable : $(Join-Path $Source $f). Compilez d'abord : cargo build --release" }

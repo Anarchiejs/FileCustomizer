@@ -11,7 +11,7 @@ Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'est
 - **Réversible.** Chaque valeur d'origine est sauvegardée (`backup.json`) *avant* d'être modifiée ; `filecustomizer restore` remet exactement l'état d'origine (y compris les clés créées par nous et les dossiers désépinglés).
 - **Pas de guerre d'écriture.** Plus de N réécritures de la même valeur en M secondes par un autre outil → le démon s'arrête sur cette valeur et le signale.
 - **Jamais de redémarrage d'`explorer.exe` automatique** : uniquement sur demande explicite (`--restart-explorer`).
-- **Privilèges minimaux.** Le démon n'écrit qu'en HKCU, sans admin. Ce qui est protégé en écriture passe par un **helper élevé lancé à la demande** (invite UAC), jamais par le démon. Le helper ne fait pas confiance aux fichiers de `%APPDATA%` : il ne restaure que les valeurs d'une liste blanche et refuse un dossier de données redirigé (lien, jonction).
+- **Privilèges minimaux.** Le démon n'écrit qu'en HKCU, sans admin. Ce qui est protégé en écriture passe par un **helper élevé lancé à la demande** (invite UAC), jamais par le démon. Le helper est installé dans Program Files (impossible à remplacer sans admin) et ne fait pas confiance aux fichiers de `%APPDATA%` : il ne restaure que les valeurs d'une liste blanche, et toutes ses lectures/écritures de fichiers se font avec les droits **non élevés** de l'utilisateur (un lien ou une jonction ne peut pas rediriger une écriture administrateur).
 - Pas de réseau, pas de télémétrie.
 
 ## Installation
@@ -21,12 +21,12 @@ Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'est
 cargo build --release                          # démon, CLI, helper
 cargo build --release --manifest-path ui\src-tauri\Cargo.toml   # interface
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\FileCustomizer.iss
-.\dist\FileCustomizer-Setup-0.1.0.exe          # installation par utilisateur, sans élévation
+.\dist\FileCustomizer-Setup-0.2.0.exe          # installation dans Program Files (invite UAC)
 ```
-L'installateur copie les binaires dans `%LOCALAPPDATA%\Programs\FileCustomizer`, crée `config.toml` (inactif), crée la **tâche planifiée** `FileCustomizer` (ouverture de session, délai 0, priorité 3 = au-dessus de la normale mais pas temps réel, privilèges normaux, une instance, relance auto en cas de plantage), démarre le démon et crée un raccourci vers l'interface. À la désinstallation il **propose la restauration** de l'état d'origine puis la suppression des données.
+L'installateur (une invite UAC, à valider avec votre propre compte administrateur) copie les binaires dans `%ProgramFiles%\FileCustomizer` et retire une éventuelle installation 0.1.0 par utilisateur (`%LOCALAPPDATA%\Programs\FileCustomizer`, données conservées). Il crée `config.toml` (inactif), crée la **tâche planifiée** `FileCustomizer` (ouverture de session, délai 0, priorité 3 = au-dessus de la normale mais pas temps réel, privilèges normaux, une instance, relance auto en cas de plantage), démarre le démon et crée un raccourci vers l'interface. À la désinstallation il **propose la restauration** de l'état d'origine puis la suppression des données.
 
 ### Scripts
-`scripts\install.ps1` / `scripts\uninstall.ps1` font la même chose sans installateur (`-AddToPath`, `-KeepSettings`, `-RemoveData`, `-Yes`).
+`scripts\install.ps1` / `scripts\uninstall.ps1` font la même chose sans installateur, depuis un PowerShell administrateur (`-AddToPath`, `-KeepSettings`, `-RemoveData`, `-Yes`).
 
 Pas de clé `Run` : elle démarre trop tard. Le démon est prêt ~30 ms après sa création ; le logon trigger le lance dès l'ouverture de session mais Windows ne garantit pas qu'il précède le premier `explorer.exe`. Ce n'est pas bloquant : le registre est appliqué immédiatement, l'Explorateur relit ces valeurs à chaque nouvelle fenêtre, et `TaskbarCreated` (redémarrage d'Explorer) déclenche une réapplication.
 

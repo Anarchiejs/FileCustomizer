@@ -36,6 +36,9 @@ const FLAG_TASKBAR: u32 = 1;
 const FLAG_END_SESSION: u32 = 2;
 const FLAG_DEVICE: u32 = 4;
 static FLAGS: AtomicU32 = AtomicU32::new(0);
+/// `MsgWaitForMultipleObjects` attend au plus 63 handles (MAXIMUM_WAIT_OBJECTS - 1) ; 3 sont pris
+/// par l'arrêt, la minuterie et config.toml.
+const MAX_WATCHES: usize = 60;
 
 unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if msg != 0 && msg == TASKBAR_CREATED_MSG.load(Ordering::Relaxed) {
@@ -140,7 +143,15 @@ impl Daemon {
     fn rebuild_watches(&mut self) {
         self.reg_watches.clear();
         self.qa_watches.clear();
-        for t in engine::collect_watch(&self.cfg) {
+        let targets = engine::collect_watch(&self.cfg);
+        if targets.len() > MAX_WATCHES {
+            // Au-delà, `MsgWaitForMultipleObjects` échouerait et le démon s'arrêterait.
+            log_error!(
+                "{} surveillances demandées, {MAX_WATCHES} au plus : les suivantes sont ignorées",
+                targets.len()
+            );
+        }
+        for t in targets.into_iter().take(MAX_WATCHES) {
             match t {
                 WatchTarget::RegKey { key, subtree } => match RegWatch::open(&key, subtree) {
                     Some(w) => {

@@ -169,6 +169,8 @@ fn desired(ctx: &Ctx) -> (Vec<RegSetting>, Vec<String>) {
     (out, notes)
 }
 
+const MAX_VERB_WATCHES: usize = 8;
+
 impl Tweak for ContextMenu {
     fn meta(&self) -> &'static TweakMeta {
         &META
@@ -199,11 +201,17 @@ impl Tweak for ContextMenu {
         if !c.blocked_extensions.is_empty() {
             w.push(WatchTarget::RegKey { key: RegKey::hkcu(BLOCKED), subtree: false });
         }
-        for v in &c.disabled_verbs {
-            w.push(WatchTarget::RegKey {
-                key: RegKey::hkcu(format!(r"Software\Classes\{}", v.trim_matches('\\'))),
-                subtree: false,
-            });
+        // Une surveillance par verbe, sauf au-delà de quelques-uns : le démon attend au plus 63
+        // handles à la fois, une seule surveillance de `Software\Classes` couvre alors tout.
+        if c.disabled_verbs.len() > MAX_VERB_WATCHES {
+            w.push(WatchTarget::RegKey { key: RegKey::hkcu(r"Software\Classes"), subtree: true });
+        } else {
+            for v in &c.disabled_verbs {
+                w.push(WatchTarget::RegKey {
+                    key: RegKey::hkcu(format!(r"Software\Classes\{}", v.trim_matches('\\'))),
+                    subtree: false,
+                });
+            }
         }
         w
     }
@@ -240,6 +248,23 @@ mod tests {
 
     fn classic() -> RegKey {
         RegKey::hkcu(format!(r"Software\Classes\CLSID\{CLASSIC_MENU_CLSID}\InprocServer32"))
+    }
+
+    #[test]
+    fn many_disabled_verbs_share_one_watch() {
+        let few = Config::from_toml(
+            r"
+            [context_menu]
+            disabled_verbs = ['Directory\shell\a', 'Directory\shell\b']",
+        )
+        .unwrap();
+        assert_eq!(ContextMenu.watch(&few).len(), 2);
+        let verbs: Vec<String> = (0..80).map(|i| format!(r"'Directory\shell\v{i}'")).collect();
+        let many = Config::from_toml(&format!("[context_menu]\ndisabled_verbs = [{}]", verbs.join(","))).unwrap();
+        assert_eq!(
+            ContextMenu.watch(&many),
+            vec![WatchTarget::RegKey { key: RegKey::hkcu(r"Software\Classes"), subtree: true }]
+        );
     }
 
     #[test]

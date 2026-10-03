@@ -29,9 +29,11 @@ fn rank(l: LogLevel) -> u8 {
 
 /// `name` : nom de fichier sans extension (`daemon`, `cli`).
 pub fn init(dir: PathBuf, name: &str, level: LogLevel) {
-    let _ = fs::create_dir_all(&dir);
     let path = dir.join(format!("{name}.log"));
-    let size = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    let size = crate::fsutil::as_user(|| {
+        let _ = fs::create_dir_all(&dir);
+        fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+    });
     *STATE.lock().unwrap() = Some(State { path, level, file: None, size });
 }
 
@@ -47,13 +49,14 @@ pub fn log(level: LogLevel, msg: &str) {
     if rank(level) == 0 || rank(level) > rank(s.level) {
         return;
     }
+    // Le handle ouvert garde les droits de son ouverture : seules ouverture et rotation passent par `as_user`.
     if s.size > MAX_BYTES {
         s.file = None;
-        let _ = fs::rename(&s.path, s.path.with_extension("log.1"));
+        crate::fsutil::as_user(|| fs::rename(&s.path, s.path.with_extension("log.1"))).ok();
         s.size = 0;
     }
     if s.file.is_none() {
-        s.file = OpenOptions::new().create(true).append(true).open(&s.path).ok();
+        s.file = crate::fsutil::as_user(|| OpenOptions::new().create(true).append(true).open(&s.path)).ok();
     }
     let tag = match level {
         LogLevel::Error => "ERROR",

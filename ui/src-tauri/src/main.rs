@@ -1,4 +1,4 @@
-//! Interface de configuration d'FileCustomizer.
+//! Interface de configuration de File Customizer.
 //!
 //! Processus SÉPARÉ lancé à la demande, jamais résident : il lit/écrit `config.toml`, le démon
 //! détecte le changement et applique. Les actions « Appliquer » / « Tout restaurer » délèguent au
@@ -96,7 +96,7 @@ fn write_config_text(text: &str) -> Result<(), String> {
     }
     // Écriture atomique : le démon ne doit jamais lire un fichier à moitié écrit.
     let tmp = path.with_extension("toml.tmp");
-    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    fc_core::fsutil::write_durable(&tmp, text.as_bytes()).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 

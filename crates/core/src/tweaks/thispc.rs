@@ -42,9 +42,8 @@ fn gated_apply(ctx: &mut Ctx, id: &str, what: &str, d: &[RegSetting]) -> Result<
     if !ctx.elevated && !ctx.dry_run {
         let stale = ctx.backup.entries_for(id).any(|e| !d.iter().any(|s| s.key == e.key && s.name == e.name));
         if stale || detect_registry(ctx, d)?.iter().any(|i| i.status == ItemStatus::Pending) {
-            ctx.report.push(
+            ctx.report.push_needs_elevation(
                 id,
-                ChangeKind::Skipped,
                 what,
                 "clé protégée en écriture : nécessite l'élévation (`filecustomizer apply --elevate`, invite UAC)",
             );
@@ -56,7 +55,7 @@ fn gated_apply(ctx: &mut Ctx, id: &str, what: &str, d: &[RegSetting]) -> Result<
 
 fn gated_revert(ctx: &mut Ctx, id: &str, what: &str) -> Result<()> {
     if !ctx.elevated && !ctx.dry_run && ctx.backup.entries_for(id).next().is_some() {
-        ctx.report.push(id, ChangeKind::Skipped, what, "restauration : nécessite l'élévation");
+        ctx.report.push_needs_elevation(id, what, "restauration : nécessite l'élévation");
         return Ok(());
     }
     revert_registry(ctx, id)
@@ -322,7 +321,7 @@ mod tests {
         reg.deny_writes_to(crate::registry::Hive::Hkcu);
         let mut b = BackupStore::in_memory();
         let r = run(&ThisPcDrives, "[this_pc]\nhide_drives = [\"D\"]", &reg, &mut b, false, false);
-        assert!(r.changes.iter().any(|c| c.kind == ChangeKind::Skipped && c.detail.contains("élévation")));
+        assert!(r.needs_elevation());
         assert_eq!(*reg.write_count.borrow(), 0);
     }
 
@@ -333,7 +332,7 @@ mod tests {
         reg.deny_writes_to(crate::registry::Hive::Hklm);
         let r = run(&ThisPcFolders, "[this_pc]\nhide_folders = [\"Vidéos\"]", &reg, &mut b, false, false);
         assert_eq!(*reg.write_count.borrow(), 0);
-        assert!(r.changes.iter().any(|c| c.kind == ChangeKind::Skipped && c.detail.contains("élévation")));
+        assert!(r.needs_elevation());
         assert!(b.is_empty());
     }
 

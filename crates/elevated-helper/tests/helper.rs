@@ -8,7 +8,7 @@ struct TempHome(PathBuf);
 
 impl TempHome {
     fn new(name: &str) -> Self {
-        let p = std::env::temp_dir().join(format!("eb-helper-{name}-{}", std::process::id()));
+        let p = std::env::temp_dir().join(format!("fc-helper-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).unwrap();
         Self(p)

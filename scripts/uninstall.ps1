@@ -12,9 +12,10 @@
 #>
 [CmdletBinding()]
 param([switch]$KeepSettings, [switch]$RemoveData, [switch]$Yes)
+#Requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
 $TaskName = 'FileCustomizer'
-$InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\FileCustomizer'
+$InstallDir = Join-Path $env:ProgramFiles 'FileCustomizer'
 $DataDir = Join-Path $env:APPDATA 'FileCustomizer'
 $cli = Join-Path $InstallDir 'filecustomizer.exe'
 

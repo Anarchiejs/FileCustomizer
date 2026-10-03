@@ -9,6 +9,7 @@ pub mod conflict;
 pub mod drives;
 pub mod engine;
 pub mod error;
+pub mod fsutil;
 pub mod log;
 pub mod paths;
 pub mod profile;

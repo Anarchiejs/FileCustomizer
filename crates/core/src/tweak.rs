@@ -50,6 +50,9 @@ pub struct Change {
     pub kind: ChangeKind,
     pub what: String,
     pub detail: String,
+    /// Ignoré faute d'élévation : le CLI propose alors le helper élevé (`apply --elevate`).
+    #[serde(default)]
+    pub needs_elevation: bool,
 }
 
 #[derive(Default, Debug)]
@@ -59,7 +62,23 @@ pub struct Report {
 
 impl Report {
     pub fn push(&mut self, tweak: &str, kind: ChangeKind, what: impl Into<String>, detail: impl Into<String>) {
-        self.changes.push(Change { tweak: tweak.into(), kind, what: what.into(), detail: detail.into() });
+        self.changes.push(Change {
+            tweak: tweak.into(),
+            kind,
+            what: what.into(),
+            detail: detail.into(),
+            needs_elevation: false,
+        });
+    }
+    /// `Skipped` faute d'élévation (repéré par `needs_elevation`, pas par le texte du détail).
+    pub fn push_needs_elevation(&mut self, tweak: &str, what: impl Into<String>, detail: impl Into<String>) {
+        self.push(tweak, ChangeKind::Skipped, what, detail);
+        if let Some(c) = self.changes.last_mut() {
+            c.needs_elevation = true;
+        }
+    }
+    pub fn needs_elevation(&self) -> bool {
+        self.changes.iter().any(|c| c.needs_elevation)
     }
     /// Vrai si le système a réellement été modifié (hors dry-run).
     pub fn modified_system(&self) -> bool {

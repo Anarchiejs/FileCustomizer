@@ -60,7 +60,8 @@ impl BackupStore {
     }
 
     pub fn load(path: &Path) -> Result<Self> {
-        let data = match std::fs::read_to_string(path) {
+        // Dans le helper élevé, lu avec les droits de l'utilisateur (voir `fsutil::as_user`).
+        let data = match crate::fsutil::as_user(|| std::fs::read_to_string(path)) {
             Ok(s) => {
                 let f: BackupFile = serde_json::from_str(&s)?;
                 if f.version > BACKUP_VERSION {
@@ -78,6 +79,10 @@ impl BackupStore {
     /// un backup tronqué si la session s'arrête en plein milieu.
     pub fn save(&self) -> Result<()> {
         let Some(p) = &self.path else { return Ok(()) };
+        crate::fsutil::as_user(|| self.save_to(p))
+    }
+
+    fn save_to(&self, p: &Path) -> Result<()> {
         if let Some(dir) = p.parent() {
             std::fs::create_dir_all(dir)?;
         }
@@ -89,7 +94,7 @@ impl BackupStore {
             all.entries.extend(self.quarantined.iter().cloned());
             serde_json::to_vec_pretty(&all)?
         };
-        std::fs::write(&tmp, json)?;
+        crate::fsutil::write_durable(&tmp, &json)?;
         std::fs::rename(&tmp, p)?;
         Ok(())
     }
@@ -218,7 +223,7 @@ mod tests {
 
     #[test]
     fn quarantined_entries_are_hidden_but_kept_on_disk() {
-        let dir = std::env::temp_dir().join(format!("eb-backup-q-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("fc-backup-q-{}", std::process::id()));
         let path = dir.join("backup.json");
         let reg =
             MockRegistry::new().with_value(key(), "v", RegValue::Dword(1)).with_value(key(), "w", RegValue::Dword(2));

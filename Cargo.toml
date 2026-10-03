@@ -3,8 +3,10 @@ resolver = "2"
 members = ["crates/core", "crates/daemon", "crates/cli", "crates/elevated-helper"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+# `<[u8]>::as_chunks` (registry.rs) est stable depuis 1.88.
+rust-version = "1.88"
 license = "MIT"
 publish = false
 
@@ -18,6 +20,14 @@ windows = "0.62"
 # Tout bloc `unsafe` doit être précédé d'un commentaire `// SAFETY:` justifiant son usage.
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = "warn"
+
+# Builds de dev : sans ces réglages, `target/` dépasse 3 Go (infos de débogage complètes de
+# toutes les dépendances). Numéros de ligne seulement pour notre code, rien pour les dépendances.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
 
 # Taille et RAM comptent plus que la vitesse de compilation : le démon doit rester
 # résident sous ~5 Mo. `panic = "abort"` retire tout le code de déroulage de pile.

@@ -27,7 +27,7 @@ impl Status {
             std::fs::create_dir_all(d)?;
         }
         let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
+        crate::fsutil::write_durable(&tmp, &serde_json::to_vec_pretty(self)?)?;
         std::fs::rename(&tmp, path)?;
         Ok(())
     }

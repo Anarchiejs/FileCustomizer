@@ -58,7 +58,7 @@ pub fn revert_all(ctx: &mut Ctx) {
         let hklm = needs_elevation_for(&e.tweak) || e.key.hive == crate::registry::Hive::Hklm;
         if ctx.elevated != hklm {
             if hklm && !ctx.dry_run {
-                ctx.report.push(&e.tweak, ChangeKind::Skipped, what, "restauration HKLM : nécessite l'élévation");
+                ctx.report.push_needs_elevation(&e.tweak, what, "restauration HKLM : nécessite l'élévation");
             }
             continue;
         }

@@ -8,7 +8,9 @@ param([Parameter(Mandatory)][string]$InstallDir)
 $ErrorActionPreference = 'Stop'
 $TaskName = 'FileCustomizer'
 $daemon = Join-Path $InstallDir 'filecustomizer-daemon.exe'
-$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+# Échappés : un `&` ou un `<` dans le nom d'utilisateur ou le chemin casserait le XML de la tâche.
+$daemon = [Security.SecurityElement]::Escape($daemon)
+$me = [Security.SecurityElement]::Escape([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $xml = @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">

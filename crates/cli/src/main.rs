@@ -9,7 +9,7 @@ use fc_core::session::Session;
 use fc_core::status::Status;
 use fc_core::tweak::{Change, ChangeKind, ItemStatus, Report};
 use fc_core::tweaks::{context_menu, navpane};
-use fc_core::{log, paths};
+use fc_core::{fsutil, log, paths};
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 use windows::core::PCWSTR;
@@ -101,30 +101,39 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // Lancé élevé (ex. par le désinstallateur) : comme le helper, toutes les lectures/écritures de
+    // fichiers se font avec les droits NON élevés de l'utilisateur (voir `fsutil::as_user`).
+    if let Err(e) = fsutil::drop_file_rights_to_user() {
+        eprintln!("erreur : processus élevé sans jeton utilisateur exploitable ({e})");
+        return ExitCode::from(4);
+    }
+    ExitCode::from(fsutil::as_user(|| run(&o)))
+}
+
+fn run(o: &Opts) -> u8 {
     log::init(paths::log_dir(), "cli", fc_core::config::LogLevel::Info);
-    let code = match o.cmd.as_str() {
+    match o.cmd.as_str() {
         "" | "help" => {
             print!("{HELP}");
             0
         }
         "init" => cmd_init(),
-        "apply" => cmd_apply(&o),
-        "profiles" => cmd_profiles(&o),
-        "status" => cmd_status(&o),
-        "restore" => cmd_restore(&o),
+        "apply" => cmd_apply(o),
+        "profiles" => cmd_profiles(o),
+        "status" => cmd_status(o),
+        "restore" => cmd_restore(o),
         "stop" => cmd_stop(),
         "nodes" => cmd_nodes(),
         "drives" => cmd_drives(),
         "shell-extensions" => cmd_shell_extensions(),
         "verbs" => cmd_verbs(),
-        "validate" => cmd_validate(&o),
-        "debug-pin" => cmd_debug_pin(&o),
+        "validate" => cmd_validate(o),
+        "debug-pin" => cmd_debug_pin(o),
         other => {
             eprintln!("commande inconnue : {other}\n\n{HELP}");
             2
         }
-    };
-    ExitCode::from(code)
+    }
 }
 
 fn config_path(o: &Opts) -> PathBuf {
@@ -222,8 +231,51 @@ fn run_elevated(verb: &str, dry_run: bool) -> Option<bool> {
         return None;
     }
     let _ = std::fs::remove_file(paths::elevated_result());
+    let code = if fsutil::process_elevated() {
+        // Déjà élevé (désinstallateur) : pas d'invite, lancement direct. Le processus créé hérite du
+        // jeton principal élevé, même si ce thread emprunte l'identité de l'utilisateur.
+        let mut cmd = Command::new(&exe);
+        cmd.arg(verb).arg("--home").arg(paths::data_dir());
+        if dry_run {
+            cmd.arg("--dry-run");
+        }
+        match cmd.status() {
+            Ok(s) => s.code().unwrap_or(1) as u32,
+            Err(e) => {
+                eprintln!("helper impossible à lancer : {e}");
+                return None;
+            }
+        }
+    } else {
+        launch_with_uac(&exe, verb, dry_run)?
+    };
+    match code {
+        3 => eprintln!(
+            "le helper élevé a refusé {} : lien ou point de jonction dans le dossier de données.",
+            paths::data_dir().display()
+        ),
+        4 => eprintln!(
+            "le helper élevé n'a pas pu reprendre les droits de l'utilisateur de la session : validez \
+             l'invite UAC avec ce même compte (administrateur), l'Explorateur étant lancé."
+        ),
+        _ => {}
+    }
+    if let Ok(s) = std::fs::read_to_string(paths::elevated_result()) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
+            if let Ok(ch) = serde_json::from_value::<Vec<Change>>(v["changes"].clone()) {
+                print_changes(&ch);
+            }
+        }
+    }
+    Some(code == 0)
+}
+
+/// `ShellExecuteExW` + verbe `runas` : invite UAC. `None` si refusée.
+fn launch_with_uac(exe: &std::path::Path, verb: &str, dry_run: bool) -> Option<u32> {
     let file = wide(&exe.to_string_lossy());
-    let mut params = format!("{verb} --home \"{}\"", paths::data_dir().display());
+    // Un `\` final échapperait le guillemet fermant (règles de CommandLineToArgvW).
+    let home = paths::data_dir().display().to_string();
+    let mut params = format!("{verb} --home \"{}\"", home.trim_end_matches('\\'));
     if dry_run {
         params.push_str(" --dry-run");
     }
@@ -249,20 +301,7 @@ fn run_elevated(verb: &str, dry_run: bool) -> Option<bool> {
         let mut code = 1u32;
         let _ = GetExitCodeProcess(info.hProcess, &mut code);
         let _ = CloseHandle(info.hProcess);
-        if code == 3 {
-            eprintln!(
-                "le helper élevé a refusé {} : lien ou point de jonction dans le dossier de données.",
-                paths::data_dir().display()
-            );
-        }
-        if let Ok(s) = std::fs::read_to_string(paths::elevated_result()) {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) {
-                if let Ok(ch) = serde_json::from_value::<Vec<Change>>(v["changes"].clone()) {
-                    print_changes(&ch);
-                }
-            }
-        }
-        Some(code == 0)
+        Some(code)
     }
 }
 
@@ -336,7 +375,7 @@ fn cmd_apply(o: &Opts) -> u8 {
     let r = s.apply(&res.effective, o.dry_run);
     print_changes(&r.changes);
     let mut code = exit_for(&r);
-    let needs_elevation = r.changes.iter().any(|c| c.kind == ChangeKind::Skipped && c.detail.contains("élévation"));
+    let needs_elevation = r.needs_elevation();
     if needs_elevation && !o.dry_run {
         if o.elevate {
             if run_elevated("apply", false) != Some(true) {
