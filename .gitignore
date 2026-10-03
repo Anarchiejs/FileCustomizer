@@ -1,0 +1,8 @@
+# Artefacts de build Rust
+/target/
+/ui/src-tauri/target/
+
+# Installateur généré (à publier en Release GitHub plutôt que dans le dépôt)
+/dist/
+
+*.json.tmp

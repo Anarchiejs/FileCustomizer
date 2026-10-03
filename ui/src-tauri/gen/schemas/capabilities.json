@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Fenêtre principale : commandes personnalisées uniquement (aucun accès fichier/shell générique).","local":true,"windows":["main"],"permissions":["core:default"]}}

@@ -1,0 +1,90 @@
+//! Session d'exécution sur le VRAI système (registre + Shell), partagée par le CLI et le démon.
+
+use crate::backup::BackupStore;
+use crate::compat;
+use crate::config::Config;
+use crate::conflict::ConflictGuard;
+use crate::engine::{self, TweakDetection};
+use crate::error::Result;
+use crate::paths;
+use crate::registry::WinRegistry;
+use crate::shell::WinShell;
+use crate::tweak::{Ctx, Report};
+use std::time::Instant;
+
+pub struct Session {
+    reg: WinRegistry,
+    shell: WinShell,
+    pub backup: BackupStore,
+    pub guard: ConflictGuard,
+    pub build: u32,
+    /// Posé uniquement par le helper élevé.
+    pub elevated: bool,
+    started: Instant,
+}
+
+impl Session {
+    /// Initialise COM (STA) sur le thread courant : la session doit rester sur ce thread.
+    pub fn open() -> Result<Self> {
+        let reg = WinRegistry;
+        let build = compat::current_build(&reg);
+        Ok(Self {
+            shell: WinShell::new()?,
+            backup: BackupStore::load(&paths::backup_path())?,
+            guard: ConflictGuard::new(5, 30),
+            build,
+            elevated: false,
+            reg,
+            started: Instant::now(),
+        })
+    }
+
+    fn with_ctx<R>(&mut self, cfg: &Config, dry_run: bool, defer_shell: bool, f: impl FnOnce(&mut Ctx) -> R) -> (R, Report) {
+        self.guard.configure(cfg.general.conflict_max_rewrites, cfg.general.conflict_window_secs);
+        let mut ctx = Ctx {
+            reg: &self.reg,
+            shell: &self.shell,
+            backup: &mut self.backup,
+            cfg,
+            guard: &mut self.guard,
+            dry_run,
+            now_ms: self.started.elapsed().as_millis() as u64,
+            build: self.build,
+            defer_shell,
+            elevated: self.elevated,
+            report: Report::default(),
+        };
+        let r = f(&mut ctx);
+        (r, ctx.report)
+    }
+
+    pub fn apply(&mut self, cfg: &Config, dry_run: bool) -> Report {
+        self.with_ctx(cfg, dry_run, false, engine::apply_all).1
+    }
+
+    /// Passe rapide du démarrage : registre seulement, sans COM/Shell.
+    pub fn apply_registry_only(&mut self, cfg: &Config) -> Report {
+        self.with_ctx(cfg, false, true, engine::apply_all).1
+    }
+
+    pub fn revert(&mut self, cfg: &Config, dry_run: bool) -> Report {
+        self.with_ctx(cfg, dry_run, false, engine::revert_all).1
+    }
+
+    pub fn detect(&mut self, cfg: &Config) -> Vec<TweakDetection> {
+        self.with_ctx(cfg, true, false, engine::detect_all).0
+    }
+
+    /// Demande aux fenêtres Explorateur ouvertes de se rafraîchir (sans redémarrer explorer.exe).
+    pub fn notify(&self) {
+        use crate::shell::ShellBackend;
+        self.shell.notify_settings_changed();
+    }
+
+    pub fn registry(&self) -> &WinRegistry {
+        &self.reg
+    }
+    pub fn shell(&self) -> &WinShell {
+        &self.shell
+    }
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ExplorerBender",
+  "version": "0.1.0",
+  "identifier": "dev.explorerbender.ui",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "ExplorerBender",
+        "width": 1180,
+        "height": 800,
+        "minWidth": 820,
+        "minHeight": 560,
+        "center": true,
+        "transparent": true,
+        "windowEffects": {
+          "effects": [
+            "mica"
+          ]
+        }
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ]
+  }
+}
