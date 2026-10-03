@@ -168,9 +168,8 @@ Guid « Ce PC » : variantes `Local*` (Documents `{f42ee2d3-…}`, Téléchargem
 
 ## Limites connues
 
-- **Effet visuel non constaté** : j'ai vérifié registre et relecture par le Shell, pas le rendu dans une fenêtre Explorateur déjà ouverte (ni pour `navpane`, ni pour `explorer-view`/`context-menu`/`this_pc`). À confirmer à l'œil (`docs/TESTING.md`). En particulier les valeurs de `LaunchTo` (1 Ce PC, 2 Accueil, 3 Téléchargements, 4 OneDrive) viennent de la documentation communautaire, non vérifiées ici.
-- **Tâche planifiée et installateur** : le script de tâche et l'installateur (`dist\ExplorerBender-Setup-0.1.0.exe`) sont **construits mais jamais exécutés** sur cette machine ; le déclenchement réel à l'ouverture de session n'est pas testé.
-- **Interface** : testée avec un `window.__TAURI__` simulé dans un navigateur (rendu des pages, enregistrement, anti-injection) ; la fenêtre Tauri native compile mais n'a pas été pilotée à l'écran. Son WebView2 est requis (présent sur Windows 11).
+- **Testé en conditions réelles** : installé avec l'installateur et utilisé sur la machine de développement (build 26200), globalement fonctionnel. Les points fins de la checklist (`docs/TESTING.md`) n'ont pas tous été confirmés un à un, notamment les valeurs de `LaunchTo` (1 Ce PC, 2 Accueil, 3 Téléchargements, 4 OneDrive), issues de la documentation communautaire, et le rafraîchissement d'une fenêtre Explorateur déjà ouverte.
+- **Interface** : son WebView2 est requis (présent sur Windows 11).
 - **Réseau, Linux (WSL), OneDrive** : Réseau/Linux ne portent pas `System.IsPinnedToNameSpaceTree` ici, OneDrive est absent. Non implémenté (règle : pas de clé non vérifiée).
 - **Ordre des nœuds du volet** : non fait (`SortOrderIndex` existe mais son effet n'est pas validé).
 - **Ne peut pas être fait sans hook** (donc pas fait) : boutons dans la barre de commandes, réordonnancement fin du volet, modification du rendu des entrées.
