@@ -144,7 +144,8 @@ mod win {
         is_elevated(own.0).unwrap_or(false)
     }
 
-    /// À appeler au démarrage du helper. Processus non élevé : rien à faire (`Ok(false)`).
+    /// À appeler au démarrage du helper. Processus non élevé, ou session entièrement élevée (UAC
+    /// désactivé) : rien à faire (`Ok(false)`).
     /// Processus élevé : prépare le jeton non élevé de l'utilisateur, pris sur l'Explorateur de la
     /// session (même utilisateur exigé), pour toutes les opérations de fichiers via `as_user`.
     pub fn drop_file_rights_to_user() -> Result<bool, String> {
@@ -194,7 +195,9 @@ mod win {
             return Err("l'invite UAC a été validée avec un autre compte que celui de la session".into());
         }
         if is_elevated(user.0)? {
-            return Err("l'Explorateur de la session tourne élevé : aucun jeton non élevé disponible".into());
+            // UAC désactivé ou compte Administrateur intégré : toute la session tourne élevée, il
+            // n'y a aucune frontière de privilège à protéger (ni de jeton non élevé à reprendre).
+            return Ok(false);
         }
         USER_TOKEN.store(user.0 .0 as isize, Ordering::Relaxed);
         std::mem::forget(user); // conservé jusqu'à la fin du processus
