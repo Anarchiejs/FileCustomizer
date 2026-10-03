@@ -432,7 +432,7 @@ function pageProfiles() {
 function pageRaw() {
   const t = el('textarea', { class: 'big', spellcheck: false });
   t.value = S.config_raw || '# config.toml absent : « Enregistrer le TOML » le créera\n';
-  return [pageHead('raw', 'TOML avancé', 'Édition directe de config.toml, commentaires conservés. Les autres pages réécrivent le fichier sans commentaires (l’ancienne version reste dans config.toml.bak).'),
+  return [pageHead('raw', 'TOML avancé', 'Édition directe de config.toml. Les autres pages modifient aussi le fichier en place, commentaires conservés (l’ancienne version reste dans config.toml.bak).'),
     card(null, null, el('div', { class: 'pad', style: 'padding-top:18px' }, t), el('div', { class: 'actions' }, btn('Enregistrer le TOML', 'check', async () => {
       try { await invoke('save_raw', { text: t.value }); toast('config.toml enregistré'); await load(); } catch (e) { toast(String(e), 'bad'); }
     }, 'primary')))];

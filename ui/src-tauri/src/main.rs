@@ -88,7 +88,7 @@ fn get_state() -> Result<Value, String> {
 fn write_config_text(text: &str) -> Result<(), String> {
     let path = paths::config_path();
     std::fs::create_dir_all(paths::data_dir()).map_err(|e| e.to_string())?;
-    // Une réécriture depuis l'interface perd les commentaires : on garde l'ancien fichier.
+    // Filet de sécurité : l'ancienne version reste disponible.
     if let Ok(old) = std::fs::read_to_string(&path) {
         if old != text {
             let _ = std::fs::write(path.with_extension("toml.bak"), old);
@@ -104,7 +104,9 @@ fn write_config_text(text: &str) -> Result<(), String> {
 #[tauri::command(async)]
 fn save_config(config: Value) -> Result<(), String> {
     let cfg: Config = serde_json::from_value(config).map_err(|e| format!("configuration invalide : {e}"))?;
-    let text = cfg.to_toml().map_err(|e| e.to_string())?;
+    // Réécrit le fichier existant en place : ses commentaires et les lignes inchangées sont conservés.
+    let existing = std::fs::read_to_string(paths::config_path()).unwrap_or_default();
+    let text = cfg.to_toml_preserving(&existing).map_err(|e| e.to_string())?;
     // Re-parse du texte produit : garantit que ce que le démon lira est bien valide.
     Config::from_toml(&text).map_err(|e| e.to_string())?;
     write_config_text(&text)

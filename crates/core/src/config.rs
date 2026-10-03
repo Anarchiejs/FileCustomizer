@@ -209,6 +209,22 @@ impl Config {
         toml::to_string_pretty(self).map_err(|e| Error::Config(e.to_string()))
     }
 
+    /// Comme `to_toml`, mais réécrit `existing` en place : les commentaires et la mise en forme
+    /// des clés inchangées sont conservés, seules les valeurs modifiées sont remplacées.
+    /// Si `existing` est illisible ou si la fusion ne redonne pas exactement `self`, renvoie
+    /// le texte de `to_toml` (jamais une configuration différente de celle demandée).
+    pub fn to_toml_preserving(&self, existing: &str) -> Result<String> {
+        let fresh = self.to_toml()?;
+        let merged = (|| {
+            let mut doc: toml_edit::DocumentMut = existing.parse().ok()?;
+            let new: toml_edit::DocumentMut = fresh.parse().ok()?;
+            toml_merge::merge_table(doc.as_table_mut(), new.as_table());
+            let text = doc.to_string();
+            (Self::from_toml(&text).ok()? == *self).then_some(text)
+        })();
+        Ok(merged.unwrap_or(fresh))
+    }
+
     /// Fichier absent = configuration par défaut (rien à faire).
     pub fn load(path: &std::path::Path) -> Result<Self> {
         match std::fs::read_to_string(path) {
@@ -350,6 +366,97 @@ version = 1
 # drive_absent = "D"
 "##;
 
+/// Fusion d'un document TOML produit par sérialisation dans le fichier de l'utilisateur.
+mod toml_merge {
+    use toml_edit::{Item, Table, Value};
+
+    /// Rend `old` égal à `new` en touchant le moins possible : clés absentes de `new` retirées,
+    /// valeurs différentes remplacées (décor conservé), nouvelles clés ajoutées en fin de table.
+    pub fn merge_table(old: &mut Table, new: &Table) {
+        let gone: Vec<String> = old.iter().map(|(k, _)| k.to_string()).filter(|k| !new.contains_key(k)).collect();
+        for k in gone {
+            old.remove(&k);
+        }
+        for (k, n) in new.iter() {
+            match old.get_mut(k) {
+                Some(o) => merge_item(o, n),
+                None => {
+                    old.insert(k, fresh(n));
+                }
+            }
+        }
+    }
+
+    fn merge_item(old: &mut Item, new: &Item) {
+        match (old, new) {
+            (Item::Table(o), Item::Table(n)) => merge_table(o, n),
+            (Item::Value(o), Item::Value(n)) => {
+                if !value_eq(o, n) {
+                    let decor = o.decor().clone();
+                    *o = n.clone();
+                    *o.decor_mut() = decor;
+                }
+            }
+            (Item::ArrayOfTables(o), Item::ArrayOfTables(n)) => {
+                while o.len() > n.len() {
+                    o.remove(o.len() - 1);
+                }
+                for (i, nt) in n.iter().enumerate() {
+                    match o.get_mut(i) {
+                        Some(ot) => merge_table(ot, nt),
+                        None => o.push(fresh_table(nt)),
+                    }
+                }
+            }
+            (o, n) => *o = fresh(n),
+        }
+    }
+
+    /// Copie d'un élément du document neuf, sans ses positions : il s'insère après ses voisins.
+    fn fresh(item: &Item) -> Item {
+        match item {
+            Item::Table(t) => Item::Table(fresh_table(t)),
+            Item::ArrayOfTables(a) => {
+                let mut a = a.clone();
+                for t in a.iter_mut() {
+                    *t = fresh_table(t);
+                }
+                Item::ArrayOfTables(a)
+            }
+            other => other.clone(),
+        }
+    }
+
+    fn fresh_table(t: &Table) -> Table {
+        let mut t = t.clone();
+        t.set_position(None);
+        for (_, item) in t.iter_mut() {
+            *item = fresh(item);
+        }
+        // Pas d'en-tête `[x.y]` vide ajouté au fichier de l'utilisateur.
+        t.set_implicit(t.is_empty());
+        t
+    }
+
+    /// Égalité de valeur, indépendante de la mise en forme (guillemets, espaces, commentaires).
+    fn value_eq(a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::String(x), Value::String(y)) => x.value() == y.value(),
+            (Value::Integer(x), Value::Integer(y)) => x.value() == y.value(),
+            (Value::Float(x), Value::Float(y)) => x.value() == y.value(),
+            (Value::Boolean(x), Value::Boolean(y)) => x.value() == y.value(),
+            (Value::Datetime(x), Value::Datetime(y)) => x.value() == y.value(),
+            (Value::Array(x), Value::Array(y)) => {
+                x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| value_eq(p, q))
+            }
+            (Value::InlineTable(x), Value::InlineTable(y)) => {
+                x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| value_eq(v, w)))
+            }
+            _ => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -447,6 +554,45 @@ mod tests {
     fn empty_rule_condition_never_matches() {
         let c = Config::from_toml("[profiles.A.quick_access]\nmode=\"disabled\"\n[[rules]]\nprofile=\"A\"\n").unwrap();
         assert_eq!(c.select_profile(None, &Drives("C")).0, None);
+    }
+
+    #[test]
+    fn ui_save_keeps_comments_and_untouched_lines() {
+        let old = r#"# ma config
+version = 1
+
+[navigation_pane]
+# Accueil : je n'en veux pas
+home = 'hide' # fin de ligne
+gallery = "hide"
+
+[explorer_view]
+# extensions
+show_file_extensions = true
+"#;
+        let mut c = Config::from_toml(old).unwrap();
+        c.navigation_pane.gallery = Visibility::Default; // retirée
+        c.explorer_view.show_file_extensions = Some(false); // modifiée
+        c.quick_access.mode = QuickAccessMode::Disabled; // nouvelle section
+        c.profiles.insert("Minimal".into(), Config::from_toml(PROFILES).unwrap().profiles["Minimal"].clone());
+        c.rules = Config::from_toml(PROFILES).unwrap().rules;
+        let text = c.to_toml_preserving(old).unwrap();
+        assert_eq!(Config::from_toml(&text).unwrap(), c);
+        for kept in ["# ma config", "# Accueil : je n'en veux pas", "home = 'hide' # fin de ligne", "# extensions"] {
+            assert!(text.contains(kept), "« {kept} » perdu :\n{text}");
+        }
+        assert!(text.contains("show_file_extensions = false"), "{text}");
+        // Toutes les clés sont écrites (valeur par défaut comprise) : la valeur retirée redevient « default ».
+        assert!(text.contains("gallery = \"default\""), "{text}");
+        assert!(!text.contains("[navigation_pane.nodes]"), "en-tête vide ajouté :\n{text}");
+    }
+
+    #[test]
+    fn ui_save_falls_back_when_existing_is_unreadable() {
+        let c = Config::from_toml(PROFILES).unwrap();
+        assert_eq!(c.to_toml_preserving("[[[ cassé").unwrap(), c.to_toml().unwrap());
+        // Rien d'ancien : identique à une écriture neuve.
+        assert_eq!(Config::from_toml(&c.to_toml_preserving("").unwrap()).unwrap(), c);
     }
 
     #[test]
