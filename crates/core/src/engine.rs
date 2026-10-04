@@ -15,18 +15,17 @@ pub fn apply_all(ctx: &mut Ctx) {
         }
         // Un tweak non validé sur cette build n'est pas appliqué à l'aveugle. Sa restauration, elle,
         // reste toujours possible (on ne fait que défaire ce qu'on a écrit).
-        if !compat::tested(m.id, ctx.build) && !ctx.cfg.general.allow_untested_builds {
-            if t.requested(ctx.cfg) {
-                ctx.report.push(
-                    m.id,
-                    ChangeKind::Skipped,
-                    m.name,
-                    format!(
-                        "build Windows {} non validée pour ce tweak : désactivé (general.allow_untested_builds = true pour forcer)",
-                        ctx.build
-                    ),
-                );
-            }
+        // Si la config ne demande plus rien pour ce tweak, `apply` ne fait que défaire ce que nous avions écrit.
+        if !compat::tested(m.id, ctx.build) && !ctx.cfg.general.allow_untested_builds && t.requested(ctx.cfg) {
+            ctx.report.push(
+                m.id,
+                ChangeKind::Skipped,
+                m.name,
+                format!(
+                    "build Windows {} non validée pour ce tweak : désactivé (general.allow_untested_builds = true pour forcer)",
+                    ctx.build
+                ),
+            );
             continue;
         }
         if let Err(e) = t.apply(ctx) {
@@ -51,7 +50,10 @@ pub fn revert_all(ctx: &mut Ctx) {
             ctx.report.push(t.meta().id, ChangeKind::Error, t.meta().name, e.to_string());
         }
     }
-    let orphans: Vec<_> = ctx.backup.data.entries.clone();
+    // Seules les entrées d'un tweak inconnu : celles des tweaks connus viennent d'être traitées ci-dessus.
+    let known: Vec<&str> = tweaks::all().iter().map(|t| t.meta().id).collect();
+    let orphans: Vec<_> =
+        ctx.backup.data.entries.iter().filter(|e| !known.contains(&e.tweak.as_str())).cloned().collect();
     for e in orphans {
         let what = format!("{} \\ {}", e.key.display(), e.name);
         // Les valeurs d'un tweak « élévation » ne se restaurent que dans le helper élevé, les autres jamais dedans.

@@ -9,7 +9,7 @@
 ; apply, démon) est lancé en tant qu'utilisateur d'origine : le démon tourne toujours sans élévation.
 
 #define AppName "File Customizer"
-#define AppVersion "0.2.0"
+#define AppVersion "0.2.1"
 
 [Setup]
 AppId={{6B2F3E58-9C1A-4B7D-8E21-5A0D7C4F1E93}
@@ -95,11 +95,15 @@ end;
 procedure RemoveOldPerUserInstall();
 var
   OldDir: String;
+  R: Integer;
 begin
   OldDir := ExpandConstant('{localappdata}\Programs\FileCustomizer');
   StopDaemon(OldDir + '\filecustomizer.exe');
+  // Ce dossier appartient à l'utilisateur (n'importe quel programme peut y poser un point de
+  // jonction) : jamais supprimé en administrateur. `rmdir /s` tourne avec les droits NON élevés
+  // de l'utilisateur et retire une jonction sans en suivre la cible.
   if DirExists(OldDir) then
-    DelTree(OldDir, True, True, True);
+    ExecAsOriginalUser(ExpandConstant('{sys}\cmd.exe'), '/c rmdir /s /q "' + OldDir + '"', '', SW_HIDE, ewWaitUntilTerminated, R);
   RegDeleteKeyIncludingSubkeys(HKCU, OldUninstallKey);
 end;
 

@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/core", "crates/daemon", "crates/cli", "crates/elevated-helper"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 # `<[u8]>::as_chunks` (registry.rs) est stable depuis 1.88.
 rust-version = "1.88"

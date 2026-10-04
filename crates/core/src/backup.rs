@@ -483,4 +483,19 @@ mod tests {
         assert!(s.contains("000fff"));
         assert_eq!(serde_json::from_str::<BackupFile>(&s).unwrap(), f);
     }
+
+    #[test]
+    fn exotic_value_types_roundtrip_with_their_type() {
+        let mut f = BackupFile::default();
+        f.entries.push(BackupEntry {
+            tweak: "t".into(),
+            key: key(),
+            name: "n".into(),
+            existed: true,
+            original: Some(RegValue::Raw { ty: 0, data: vec![1, 2] }),
+            created_keys: vec![],
+        });
+        let s = serde_json::to_string(&f).unwrap();
+        assert_eq!(serde_json::from_str::<BackupFile>(&s).unwrap(), f);
+    }
 }

@@ -2,11 +2,21 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
-## [Non publié]
+## [0.2.1] — 2026-10-04
 
-Corrections issues d'un second audit.
+Corrections issues des deux audits suivants.
 
-### Corrigé
+### Corrigé (troisième audit)
+- Installateur et `install.ps1` : l'ancien dossier d'installation par utilisateur (`%LOCALAPPDATA%\Programs\FileCustomizer`) n'est plus supprimé en administrateur (`DelTree`) mais avec les droits de l'utilisateur ; le script refuse s'il y trouve un lien ou une jonction.
+- L'interface n'écrase plus un `config.toml` invalide par les valeurs par défaut : l'enregistrement du formulaire est refusé, le fichier se corrige dans l'onglet « TOML avancé ».
+- `apply` relance le démon (tâche planifiée) quand il était arrêté, par exemple après un `restore`.
+- `apply --config <fichier>` n'est plus accepté qu'avec `--dry-run` (le démon et le helper élevé lisent toujours `config.toml`).
+- `restore` attend la fin réelle du démon avant de restaurer, au lieu d'une pause fixe de 500 ms.
+- `restore --dry-run` ne liste plus chaque entrée deux fois ; une restauration en échec n'est plus retentée ni signalée en double.
+- Valeurs de registre de type exotique (REG_NONE, REG_LINK, DWORD tronqué...) : sauvegardées et restaurées avec leur type d'origine, plus converties en REG_BINARY.
+- Build Windows non validée : retirer une option de la config défait de nouveau ce que nous avions écrit (seule l'application de nouveaux réglages reste bloquée).
+
+### Corrigé (second audit)
 - **`backup.json` pouvait perdre des entrées** : le démon, le CLI (lancé aussi par l'interface) et le helper élevé le lisaient une seule fois puis le réécrivaient entièrement depuis leur copie. Le démon effaçait ainsi les entrées HKLM ajoutées par `apply --elevate` (« Ce PC : dossiers » plus restaurables), et la « valeur d'origine » pouvait devenir la nôtre. Chaque modification est désormais une lecture-modification-écriture sous verrou (mutex nommé), à partir de l'état du disque ; chaque passe relit le fichier ; `restore` suspend le démon avant de lire le backup.
 - Un caractère non-ASCII dans une donnée binaire de `backup.json` faisait planter (panique) le démon, le CLI ou le helper : erreur propre à la place.
 - `backup.json` illisible bloquait tout : la version précédente (`backup.json.bak`) prend le relais, le fichier abîmé est conservé (`backup.json.corrupt`).

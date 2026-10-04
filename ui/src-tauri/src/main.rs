@@ -120,6 +120,15 @@ fn save_config(config: Value, base: Option<String>) -> Result<(), String> {
     let cfg: Config = serde_json::from_value(config).map_err(|e| format!("configuration invalide : {e}"))?;
     // Réécrit le fichier existant en place : ses commentaires et les lignes inchangées sont conservés.
     let existing = std::fs::read_to_string(paths::config_path()).unwrap_or_default();
+    // Un config.toml invalide est affiché avec des valeurs par défaut : l'enregistrer le remplacerait
+    // par ces défauts. On refuse ; il se corrige dans l'onglet « TOML avancé ».
+    if !existing.trim().is_empty() {
+        if let Err(e) = Config::from_toml(&existing) {
+            return Err(format!(
+                "config.toml est invalide ({e}) : corrigez-le dans l'onglet « TOML avancé » ; le formulaire ne l'écrase pas"
+            ));
+        }
+    }
     let text = cfg.to_toml_preserving(&existing).map_err(|e| e.to_string())?;
     // Re-parse du texte produit : garantit que ce que le démon lira est bien valide.
     Config::from_toml(&text).map_err(|e| e.to_string())?;

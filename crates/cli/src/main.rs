@@ -201,6 +201,38 @@ fn signal_daemon_stop() -> bool {
     }
 }
 
+/// Relance le démon via la tâche planifiée (après un `restore` ou un `stop`). Jamais avec un dossier
+/// de données isolé (tests) : la tâche lancerait le vrai démon de la session.
+fn start_daemon_task() -> bool {
+    if std::env::var_os("FILECUSTOMIZER_HOME").is_some() {
+        return false;
+    }
+    let ok =
+        Command::new("schtasks").args(["/Run", "/TN", "FileCustomizer"]).output().is_ok_and(|o| o.status.success());
+    if ok {
+        // Laisse le démon prendre son mutex avant d'afficher quoi que ce soit d'autre.
+        for _ in 0..30 {
+            if daemon_running() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+    ok
+}
+
+/// Après `signal_daemon_stop` : attend la sortie réelle du démon (il finit d'abord sa passe en cours).
+/// Son mutex disparaît avec le processus.
+fn wait_daemon_stopped() -> bool {
+    for _ in 0..100 {
+        if !daemon_running() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    false
+}
+
 fn print_changes(changes: &[Change]) {
     for c in changes {
         let tag = match c.kind {
@@ -343,6 +375,12 @@ fn cmd_init() -> u8 {
 }
 
 fn cmd_apply(o: &Opts) -> u8 {
+    // Le démon et le helper élevé lisent toujours le config.toml d'origine : appliquer un autre
+    // fichier serait aussitôt défait par le démon (et `--elevate` écrirait autre chose en HKLM).
+    if o.config.is_some() && !o.dry_run {
+        eprintln!("--config n'est accepté qu'avec --dry-run : le démon applique toujours config.toml.");
+        return 2;
+    }
     let base = match load_config(o) {
         Ok(c) => c,
         Err(c) => return c,
@@ -416,7 +454,11 @@ fn cmd_apply(o: &Opts) -> u8 {
             ),
         );
         if !daemon_running() {
-            println!("\nNote : le démon n'est pas lancé ; les modifications ne seront pas maintenues. Voir `scripts\\install.ps1`.");
+            if start_daemon_task() {
+                println!("\nLe démon était arrêté : relancé par la tâche planifiée FileCustomizer.");
+            } else {
+                println!("\nNote : le démon n'est pas lancé ; les modifications ne seront pas maintenues. Relancez la tâche planifiée FileCustomizer (ou ouvrez une nouvelle session).");
+            }
         }
         if o.restart_explorer {
             restart_explorer();
@@ -502,8 +544,11 @@ fn cmd_restore(o: &Opts) -> u8 {
             paths::disabled_marker(),
             "FileCustomizer suspendu par `restore`. `filecustomizer apply` le réactive.\n",
         );
-        if signal_daemon_stop() {
-            std::thread::sleep(std::time::Duration::from_millis(500));
+        // On attend la vraie fin du démon : une passe en cours pourrait sinon réécrire une valeur
+        // que nous venons de restaurer.
+        if signal_daemon_stop() && !wait_daemon_stopped() {
+            eprintln!("Le démon ne s'est pas arrêté en 10 s : restauration abandonnée (relancez `restore`).");
+            return 1;
         }
     }
     let mut s = match open_session() {

@@ -21,7 +21,7 @@ Personnalise la **structure** de l'Explorateur de fichiers Windows 11 (pas l'est
 cargo build --release                          # démon, CLI, helper
 cargo build --release --manifest-path ui\src-tauri\Cargo.toml   # interface
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\FileCustomizer.iss
-.\dist\FileCustomizer-Setup-0.2.0.exe          # installation dans Program Files (invite UAC)
+.\dist\FileCustomizer-Setup-0.2.1.exe          # installation dans Program Files (invite UAC)
 ```
 L'installateur (une invite UAC, à valider avec votre propre compte administrateur) copie les binaires dans `%ProgramFiles%\FileCustomizer` et retire une éventuelle installation 0.1.0 par utilisateur (`%LOCALAPPDATA%\Programs\FileCustomizer`, données conservées). Il crée `config.toml` (inactif), crée la **tâche planifiée** `FileCustomizer` (ouverture de session, délai 0, priorité 3 = au-dessus de la normale mais pas temps réel, privilèges normaux, une instance, relance auto en cas de plantage), démarre le démon et crée un raccourci vers l'interface. À la désinstallation il **propose la restauration** de l'état d'origine puis la suppression des données.
 

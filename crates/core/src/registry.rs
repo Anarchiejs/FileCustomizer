@@ -77,6 +77,14 @@ pub enum RegValue {
     /// Encodé en hexadécimal dans backup.json.
     #[serde(rename = "REG_BINARY", with = "hex_bytes")]
     Binary(Vec<u8>),
+    /// Tout autre type (REG_NONE, REG_LINK, DWORD tronqué...) : type numérique et octets d'origine,
+    /// pour que la restauration rende exactement ce qui existait.
+    #[serde(rename = "REG_RAW")]
+    Raw {
+        ty: u32,
+        #[serde(with = "hex_bytes")]
+        data: Vec<u8>,
+    },
 }
 
 impl RegValue {
@@ -88,6 +96,7 @@ impl RegValue {
             RegValue::ExpandSz(s) => format!("expand:\"{s}\""),
             RegValue::MultiSz(v) => format!("multi:{v:?}"),
             RegValue::Binary(b) => format!("binary({} octets)", b.len()),
+            RegValue::Raw { ty, data } => format!("type {ty} ({} octets)", data.len()),
         }
     }
 }
@@ -384,7 +393,8 @@ mod win {
                         s.split(|c| *c == 0).filter(|p| !p.is_empty()).map(String::from_utf16_lossy).collect(),
                     )
                 }
-                _ => RegValue::Binary(buf),
+                REG_BINARY => RegValue::Binary(buf),
+                other => RegValue::Raw { ty: other.0, data: buf },
             }))
         }
 
@@ -406,6 +416,7 @@ mod win {
                     (REG_MULTI_SZ, u.iter().flat_map(|c| c.to_le_bytes()).collect())
                 }
                 RegValue::Binary(b) => (REG_BINARY, b.clone()),
+                RegValue::Raw { ty, data } => (REG_VALUE_TYPE(*ty), data.clone()),
             };
             // SAFETY: `h` est une clé ouverte ; `n` est terminé par NUL ; `data` est une slice dont la taille est connue.
             let r = unsafe { RegSetValueExW(h.0, PCWSTR(n.as_ptr()), None, ty, Some(&data)) };

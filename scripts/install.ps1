@@ -32,7 +32,16 @@ if (Test-Path (Join-Path $OldDir 'filecustomizer.exe')) {
   & (Join-Path $OldDir 'filecustomizer.exe') stop | Out-Null
   Start-Sleep -Milliseconds 500
 }
-if (Test-Path $OldDir) { [IO.Directory]::Delete($OldDir, $true) }
+if (Test-Path $OldDir) {
+  # Dossier contrôlé par l'utilisateur : on refuse d'y supprimer quoi que ce soit en administrateur
+  # s'il contient un lien ou un point de jonction (la cible serait supprimée avec nos droits).
+  $links = Get-ChildItem -LiteralPath $OldDir -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue
+  $self = Get-Item -LiteralPath $OldDir -Force
+  if ($links -or ($self.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+    throw "$OldDir contient un lien ou un point de jonction : supprimez ce dossier à la main, sans élévation, puis relancez."
+  }
+  & "$env:SystemRoot\System32\cmd.exe" /c rmdir /s /q "`"$OldDir`""
+}
 
 foreach ($f in 'filecustomizer.exe', 'filecustomizer-daemon.exe', 'filecustomizer-elevated.exe') {
   if (-not (Test-Path (Join-Path $Source $f))) { throw "Introuvable : $(Join-Path $Source $f). Compilez d'abord : cargo build --release" }
